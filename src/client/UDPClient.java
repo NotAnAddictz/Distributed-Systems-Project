@@ -6,12 +6,8 @@ import java.util.Scanner;
 public class UDPClient {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-
-        System.out.print("Enter server hostname: ");
-        String serverHostname = scanner.nextLine();
-
-        System.out.print("Enter server port number: ");
-        int serverPort = Integer.parseInt(scanner.nextLine());
+        String serverHostname = args[0];
+        int serverPort = Integer.parseInt(args[1]);
 
         DatagramSocket clientSocket = null;
         try {

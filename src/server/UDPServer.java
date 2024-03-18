@@ -11,7 +11,7 @@ public class UDPServer {
         Marshaller marshaller = new Marshaller();
         try {
             // Create a UDP socket
-            serverSocket = new DatagramSocket(9877); // Port number can be any available port
+            serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
 
             byte[] receiveData = new byte[1024];
 
