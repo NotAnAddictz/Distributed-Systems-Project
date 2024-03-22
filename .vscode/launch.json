@@ -6,6 +6,22 @@
     "configurations": [
         {
             "type": "java",
+            "name": "UDPClient",
+            "request": "launch",
+            "mainClass": "client.UDPClient",
+            "projectName": "Distributed-Systems-Project_3694c081",
+            "args": "localhost 9877"
+        },
+        {
+            "type": "java",
+            "name": "UDPServer",
+            "request": "launch",
+            "mainClass": "server.UDPServer",
+            "projectName": "Distributed-Systems-Project_3694c081",
+            "args": "9877"
+        },
+        {
+            "type": "java",
             "name": "Current File",
             "request": "launch",
             "mainClass": "${file}"

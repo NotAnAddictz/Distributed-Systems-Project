@@ -1,8 +1,14 @@
 package server;
 
+import java.io.EOFException;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
+
 import common.Marshaller;
 
 public class UDPServer {
@@ -18,23 +24,32 @@ public class UDPServer {
             while (true) {
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 byte[] returnedMessage;
+                DatagramPacket sendPacket;
 
                 // Receive packet from client
                 serverSocket.receive(receivePacket);
+                System.out.println("Packet Received from: " + receivePacket.getAddress() + " Client Port: " + receivePacket.getPort());
 
                 // Get client's address and port number
                 InetAddress clientAddress = receivePacket.getAddress();
                 int clientPort = receivePacket.getPort();
 
-                String receivedMessage = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                System.out.println("Received from client: " + receivedMessage);
+                byte[] receivedMessage = receivePacket.getData();
+                String[] unmarshalledStrings = marshaller.readFileUnmarshal(receivedMessage);
                 
-                if(Integer.parseInt(receivedMessage) == 1){
-                    String fileContent = readFile();
-                    System.out.println("File content: " + fileContent);
-                    returnedMessage = marshaller.marshal(fileContent);
-                    DatagramPacket sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
-                    serverSocket.send(sendPacket);
+                int clientChosen = Integer.parseInt(unmarshalledStrings[0]);
+                
+                switch (clientChosen) {
+                    case 1:
+                        String fileContent = readFile(unmarshalledStrings);
+                        returnedMessage = marshaller.marshal(fileContent);
+                        TimeUnit.SECONDS.sleep(5);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
+                        serverSocket.send(sendPacket);
+                        break;
+                
+                    default:
+                        break;
                 }
             }
         } catch (Exception e) {
@@ -46,22 +61,31 @@ public class UDPServer {
         }
     }
 
-    public static String readFile(){
-
-        String filePath = "src/resources/testfile.txt";
-        int n = 5; // Number of bytes to read
+    public static String readFile(String[] unmarshalledStrings){
+        String filePath = "src/resources/" + unmarshalledStrings[1];
+        int offset = Integer.valueOf(unmarshalledStrings[2]);
+        int noOfBytes = Integer.valueOf(unmarshalledStrings[3].trim()); // Number of bytes to read
         String content = "No content in file";
+        
+        try (
+            // Read file content
+            RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
+            file.seek(offset);
+            byte[] buffer = new byte[noOfBytes];
+            file.readFully(buffer);
+            file.close();
 
-        try (FileInputStream fis = new FileInputStream(filePath)) {
-            byte[] buffer = new byte[n];
-            int bytesRead = fis.read(buffer);
-
-            if (bytesRead != -1) {
-                content = new String(buffer, 0, bytesRead);
-            }
+            // Convert the byte array to a String
+            String readValue = new String(buffer, StandardCharsets.UTF_8);
+            return readValue;
+        } catch (FileNotFoundException e) {
+            content = "File does not exist on server";
+        } catch (EOFException e) {
+            content = "Offset exceed file length";
         } catch (IOException e) {
+            content = "IOException Error";
             e.printStackTrace();
         }
-        return content;
+            return content;
     }
 }
