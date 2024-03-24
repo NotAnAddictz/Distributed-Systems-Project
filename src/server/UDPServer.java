@@ -8,26 +8,34 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Dictionary;
 import java.util.concurrent.TimeUnit;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.TimerTask;
 
 import common.Marshaller;
 
 public class UDPServer {
+    @SuppressWarnings("static-access")
     public static void main(String[] args) {
         DatagramSocket serverSocket = null;
         Marshaller marshaller = new Marshaller();
         try {
             // Create a UDP socket
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
+            Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
+            
             while (true) {
                 byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 byte[] returnedMessage;
                 DatagramPacket sendPacket;
-
                 // Receive packet from client
                 serverSocket.receive(receivePacket);
-                System.out.println("Packet Received from: " + receivePacket.getAddress() + " Client Port: " + receivePacket.getPort());
+                System.out.println("Packet Received from: " + receivePacket.getAddress() + " Client Port: "
+                        + receivePacket.getPort());
 
                 // Get client's address and port number
                 InetAddress clientAddress = receivePacket.getAddress();
@@ -35,10 +43,9 @@ public class UDPServer {
 
                 byte[] receivedMessage = receivePacket.getData();
                 String[] unmarshalledStrings = marshaller.unmarshal(receivedMessage);
-                
+
                 int clientChosen = Integer.parseInt(unmarshalledStrings[0]);
-                String fileContent = "";
-                
+                String fileContent;
                 switch (clientChosen) {
                     case 1:
                         fileContent = readFile(unmarshalledStrings);
@@ -51,22 +58,60 @@ public class UDPServer {
                         fileContent = writeToFile(unmarshalledStrings);
                         returnedMessage = marshaller.marshal(1, fileContent);
                         TimeUnit.SECONDS.sleep(1);
-                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
+                                clientPort);
                         serverSocket.send(sendPacket);
+                        List<Callback> clientList = registry.get("src/resources/" + unmarshalledStrings[1]);
+                        System.out.println("Getting ClientList");
+                        if (clientList != null) {
+                            System.out.println(clientList.size());
+                            for (Callback callback : clientList) {
+                                String file = unmarshalledStrings[1];
+                                String message = String.format("Update! %s has been updated! \n New content: %s", file,
+                                        fileContent);
+                                returnedMessage = marshaller.marshal(3, "0", message);
+                                sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length,
+                                        callback.ClientAdd,
+                                        callback.ClientPort);
+                                serverSocket.send(sendPacket);
+                            }
+                        }
                         break;
-                    case 4:
+                    case 3:
                         fileContent = listFiles(unmarshalledStrings);
                         returnedMessage = marshaller.marshal(2, fileContent);
                         TimeUnit.SECONDS.sleep(1);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
                         serverSocket.send(sendPacket);
                         break;
+                    case 4:
+                        String filePath = "src/resources/" + unmarshalledStrings[1];
+                        int duration = Integer.parseInt(unmarshalledStrings[2]); // Duration in seconds
+                        Callback callback = new Callback(clientAddress, clientPort);
+                        new java.util.Timer().schedule(new removeMonitor(callback, registry, filePath, serverSocket),
+                                duration * 1000);
+                        // Adding into the registry
+                        if (registry.get(filePath) == null) {
+                            System.out.printf("Putting %s \n", filePath);
+                            List<Callback> currentArray = new ArrayList<Callback>();
+                            currentArray.add(callback);
+                            registry.put(filePath, currentArray);
+                        } else {
+                            List<Callback> currentArray = registry.get(filePath);
+                            currentArray.add(callback);
+                            registry.put(filePath, currentArray);
+                        }
+                        break;
+
                     default:
-                        System.out.println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
+                        System.out.println(
+                                "Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
                         break;
                 }
             }
-        } catch (Exception e) {
+        } catch (
+
+        Exception e) {
             e.printStackTrace();
         } finally {
             if (serverSocket != null) {
@@ -80,10 +125,10 @@ public class UDPServer {
         int offset = Integer.valueOf(unmarshalledStrings[2]);
         int noOfBytes = Integer.valueOf(unmarshalledStrings[3].trim()); // Number of bytes to read
         String content = "No content in file";
-        
+
         try (
-            // Read file content
-            RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
+                // Read file content
+                RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
             file.seek(offset);
             byte[] buffer = new byte[noOfBytes];
             file.readFully(buffer);
@@ -100,7 +145,7 @@ public class UDPServer {
             content = "IOException Error";
             e.printStackTrace();
         }
-            return content;
+        return content;
     }
 
     public static String writeToFile(String[] unmarshalledStrings){
@@ -108,10 +153,10 @@ public class UDPServer {
         int offset = Integer.valueOf(unmarshalledStrings[2]);
         String write = unmarshalledStrings[3].trim();
         String content = "No content in file";
-        
+
         try (
-            // Read file content
-            RandomAccessFile file = new RandomAccessFile(filePath, "rw")) {
+                // Read file content
+                RandomAccessFile file = new RandomAccessFile(filePath, "rw")) {
             file.seek(offset);
 
             // Read data after offset
@@ -145,7 +190,48 @@ public class UDPServer {
             content = "IOException Error";
             e.printStackTrace();
         }
-            return content;
+        return content;
+    }
+
+    // Callback Object
+    public static class Callback {
+        InetAddress ClientAdd;
+        int ClientPort;
+
+        public Callback(InetAddress clientAdd, int clientPort) {
+            this.ClientAdd = clientAdd;
+            this.ClientPort = clientPort;
+        }
+    }
+
+    static class removeMonitor extends TimerTask {
+        private Callback callback;
+        private Dictionary<String, List<Callback>> registry;
+        private String filePath;
+        private DatagramSocket serverSocket;
+
+        removeMonitor(Callback callback, Dictionary<String, List<Callback>> registry, String filePath,
+                DatagramSocket serverSocket) {
+            this.callback = callback;
+            this.registry = registry;
+            this.filePath = filePath;
+            this.serverSocket = serverSocket;
+        }
+
+        @Override
+        public void run() {
+
+            Marshaller marshaller = new Marshaller();
+            registry.get(filePath).remove(callback);
+            byte[] returnedMessage = marshaller.marshal(3, "1");
+            DatagramPacket sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, callback.ClientAdd,
+                    callback.ClientPort);
+            try {
+                serverSocket.send(sendPacket);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     public static String listFiles(String[] unmarshalledStrings) {

@@ -1,6 +1,8 @@
 package client;
 
 import java.net.*;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 
@@ -19,7 +21,7 @@ public class UDPClient {
         UDPClient udpClient = new UDPClient();
         udpClient.startProgram(serverHostname, serverPort);
     }
-    
+
     public void startProgram(String serverHostname, int serverPort) {
         scanner = new Scanner(System.in);
         clientSocket = null;
@@ -39,11 +41,12 @@ public class UDPClient {
                 System.out.println("1: Read file on (n) bytes.");
                 System.out.println("2: Write to file.");
                 System.out.println("3: List all files.");
+                System.out.println("4: Monitor File Updates");
                 System.out.println("5: Exit program.");
                 System.out.print("Enter option: ");
                 chosen = Integer.parseInt(scanner.nextLine());
-                
-                switch(chosen) {
+                boolean monitoring = false;
+                switch (chosen) {
                     case 1:
                         readFile();
                         break;
@@ -53,6 +56,10 @@ public class UDPClient {
                     case 3:
                         listAllFiles();
                         break;
+                    case 4:
+                        monitorUpdates();
+                        monitoring = true;
+                        break;
                     case 5:
                         System.out.println("Exiting program.");
                         System.exit(200);
@@ -61,7 +68,11 @@ public class UDPClient {
                         System.out.println("Invalid option.");
                         break;
                 }
-                receive();
+                if (!monitoring) {
+                    receive();
+                    monitoring = false;
+                }
+
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -70,6 +81,35 @@ public class UDPClient {
                 clientSocket.close();
             }
             scanner.close();
+        }
+    }
+
+    public void receive() {
+        try {
+            byte[] receiveData = new byte[1024];
+
+            // Receive response from server
+            DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+            clientSocket.receive(receivePacket);
+
+            String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
+            int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
+
+            switch (serverChosen) {
+                    case 1:
+                        // Print response from server
+                        System.out.println("Server Replied: " + unmarshalledStrings[1]);
+                        break;
+                    case 2:
+                        System.out.println("List of files: ");
+                        System.out.println(unmarshalledStrings[1]);
+                        break;
+                    default:
+                        System.out.println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
+                        break;
+                }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -158,7 +198,7 @@ public class UDPClient {
     
     public void listAllFiles() {
         try {
-            byte[] sendData = marshaller.marshal(4);
+            byte[] sendData = marshaller.marshal(3);
 
             // Create packet to send to server
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
@@ -170,32 +210,62 @@ public class UDPClient {
         }
     }
 
-    public void receive() {
+    public void monitorUpdates() {
         try {
-            byte[] receiveData = new byte[1024];
-
-            // Receive response from server
-            DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-            clientSocket.receive(receivePacket);
-
-            String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
-            int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
-
-            switch (serverChosen) {
-                    case 1:
-                        // Print response from server
-                        System.out.println("Server Replied: " + unmarshalledStrings[1]);
-                        break;
-                    case 2:
-                        System.out.println("List of files: ");
-                        System.out.println(unmarshalledStrings[1]);
-                        break;
-                    default:
-                        System.out.println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
-                        break;
+            int duration = 0;
+            System.out.printf("Select File to monitor: ");
+            String filePath = scanner.nextLine();
+            while (true) {
+                System.out.printf("Select Duration to monitor: ");
+                String durationString = scanner.nextLine();
+                try {
+                    duration = Integer.parseInt(durationString);
+                    if (duration < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.printf("duration must be a positive integer");
+                    continue;
                 }
+                break;
+            }
+            System.out.println("Scanning for updates on " + filePath + " for " + duration + " seconds");
+            byte[] sendData = marshaller.monitorFileMarshal(4, filePath, duration);
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+            clientSocket.send(sendPacket);
+            while (true) {
+                byte[] receiveData = new byte[1024];
+                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+
+                clientSocket.receive(receivePacket);
+
+                String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
+                int message = Integer.parseInt(unmarshalledStrings[1]);
+                if (message == 1) {
+                    System.out.println("Ending Monitoring");
+                    break;
+                } else {
+                    System.out.println(unmarshalledStrings[2]);
+                }
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public interface Callback extends Remote {
+        void callbackMethod() throws RemoteException;
+    };
+
+    public class CallbackObject implements Callback {
+        @Override
+        public void callbackMethod() throws RemoteException {
+            System.out.println("File updated");
+        }
+
+        String filePath;
+
     }
 }

@@ -23,11 +23,15 @@ public class Marshaller {
         return strArr;
     }
 
-    public byte[] readFileMarshal(int funcID, String fileName, int offset, int readBytes){
+    public byte[] readFileMarshal(int funcID, String fileName, int offset, int readBytes) {
         return marshal(funcID, fileName, Integer.toString(offset), Integer.toString(readBytes));
     }
 
-    public byte[] writeFileMarshal(int funcID, String fileName, int offset, String write){
+    public byte[] writeFileMarshal(int funcID, String fileName, int offset, String write) {
         return marshal(funcID, fileName, Integer.toString(offset), write);
+    }
+
+    public byte[] monitorFileMarshal(int funcID, String fileName, int duration) {
+        return marshal(funcID, fileName, Integer.toString(duration));
     }
 }
