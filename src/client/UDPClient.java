@@ -14,6 +14,7 @@ public class UDPClient {
     Marshaller marshaller;
     InetAddress serverAddress;
     int serverPort;
+
     public static void main(String[] args) {
         String serverHostname = args[0];
         int serverPort = Integer.parseInt(args[1]);
@@ -37,14 +38,17 @@ public class UDPClient {
 
             int chosen = 0;
             while (chosen != 5) {
-
+                System.out.println("==================================");
                 System.out.println("1: Read file on (n) bytes.");
                 System.out.println("2: Write to file.");
                 System.out.println("3: List all files.");
                 System.out.println("4: Monitor File Updates");
                 System.out.println("5: Exit program.");
+                System.out.println("==================================");
                 System.out.print("Enter option: ");
+
                 chosen = Integer.parseInt(scanner.nextLine());
+                System.out.println("");
                 boolean monitoring = false;
                 switch (chosen) {
                     case 1:
@@ -96,18 +100,19 @@ public class UDPClient {
             int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
 
             switch (serverChosen) {
-                    case 1:
-                        // Print response from server
-                        System.out.println("Server Replied: " + unmarshalledStrings[1]);
-                        break;
-                    case 2:
-                        System.out.println("List of files: ");
-                        System.out.println(unmarshalledStrings[1]);
-                        break;
-                    default:
-                        System.out.println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
-                        break;
-                }
+                case 1:
+                    // Print response from server
+                    System.out.println("Server Replied: " + unmarshalledStrings[1]);
+                    break;
+                case 2:
+                    System.out.println("List of files: ");
+                    System.out.println(unmarshalledStrings[1]);
+                    break;
+                default:
+                    System.out
+                            .println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
+                    break;
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -195,7 +200,7 @@ public class UDPClient {
             e.printStackTrace();
         }
     }
-    
+
     public void listAllFiles() {
         try {
             byte[] sendData = marshaller.marshal(3);

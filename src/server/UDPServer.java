@@ -2,7 +2,6 @@ package server;
 
 import java.io.EOFException;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -18,7 +17,6 @@ import java.util.TimerTask;
 import common.Marshaller;
 
 public class UDPServer {
-    @SuppressWarnings("static-access")
     public static void main(String[] args) {
         DatagramSocket serverSocket = null;
         Marshaller marshaller = new Marshaller();
@@ -26,7 +24,7 @@ public class UDPServer {
             // Create a UDP socket
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
-            
+
             while (true) {
                 byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
@@ -51,7 +49,8 @@ public class UDPServer {
                         fileContent = readFile(unmarshalledStrings);
                         returnedMessage = marshaller.marshal(1, fileContent);
                         TimeUnit.SECONDS.sleep(1);
-                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
+                                clientPort);
                         serverSocket.send(sendPacket);
                         break;
                     case 2:
@@ -62,9 +61,7 @@ public class UDPServer {
                                 clientPort);
                         serverSocket.send(sendPacket);
                         List<Callback> clientList = registry.get("bin/resources/" + unmarshalledStrings[1]);
-                        System.out.println("Getting ClientList");
                         if (clientList != null) {
-                            System.out.println(clientList.size());
                             for (Callback callback : clientList) {
                                 String file = unmarshalledStrings[1];
                                 String message = String.format("Update! %s has been updated! \n New content: %s", file,
@@ -81,7 +78,8 @@ public class UDPServer {
                         fileContent = listFiles(unmarshalledStrings);
                         returnedMessage = marshaller.marshal(2, fileContent);
                         TimeUnit.SECONDS.sleep(1);
-                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
+                                clientPort);
                         serverSocket.send(sendPacket);
                         break;
                     case 4:
@@ -92,7 +90,6 @@ public class UDPServer {
                                 duration * 1000);
                         // Adding into the registry
                         if (registry.get(filePath) == null) {
-                            System.out.printf("Putting %s \n", filePath);
                             List<Callback> currentArray = new ArrayList<Callback>();
                             currentArray.add(callback);
                             registry.put(filePath, currentArray);
@@ -120,7 +117,7 @@ public class UDPServer {
         }
     }
 
-    public static String readFile(String[] unmarshalledStrings){
+    public static String readFile(String[] unmarshalledStrings) {
         String filePath = "bin/resources/" + unmarshalledStrings[1];
         int offset = Integer.valueOf(unmarshalledStrings[2]);
         int noOfBytes = Integer.valueOf(unmarshalledStrings[3].trim()); // Number of bytes to read
@@ -148,7 +145,7 @@ public class UDPServer {
         return content;
     }
 
-    public static String writeToFile(String[] unmarshalledStrings){
+    public static String writeToFile(String[] unmarshalledStrings) {
         String filePath = "bin/resources/" + unmarshalledStrings[1];
         int offset = Integer.valueOf(unmarshalledStrings[2]);
         String write = unmarshalledStrings[3].trim();
@@ -231,6 +228,7 @@ public class UDPServer {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+            cancel();
         }
     }
 
