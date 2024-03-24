@@ -37,8 +37,8 @@ public class UDPClient {
             while (chosen != 5) {
 
                 System.out.println("1: Read file on (n) bytes.");
-                System.out.println("2: Write file on (n) bytes.");
-                System.out.println("3: Monitor updates on file.");
+                System.out.println("2: Write to file.");
+                System.out.println("3: Monitor File Updates");
                 System.out.println("5: Exit program.");
                 System.out.print("Enter option: ");
                 chosen = Integer.parseInt(scanner.nextLine());
@@ -48,21 +48,20 @@ public class UDPClient {
                         readFile(serverAddress, serverPort);
                         break;
                     case 2:
+                        writeToFile(serverAddress, serverPort);
                         break;
                     case 3:
-                        // Creating callback object
-                        Callback callbackObject = new CallbackObject();
                         monitorUpdates(serverAddress, serverPort);
-                        break;
-                    case 4:
                         break;
                     case 5:
                         System.out.println("Exiting program.");
+                        System.exit(200);
                         break;
                     default:
                         System.out.println("Invalid option.");
                         break;
                 }
+                receive();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -115,7 +114,46 @@ public class UDPClient {
 
             // Send packet to server
             clientSocket.send(sendPacket);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
+    public void writeToFile(InetAddress serverAddress, int serverPort) {
+        try {
+            int offset;
+            System.out.printf("Enter file path: ");
+            String filePathString = scanner.nextLine();
+            while (true) {
+                System.out.printf("Enter offset(bytes): ");
+                String offsetString = scanner.nextLine();
+                try {
+                    offset = Integer.parseInt(offsetString);
+                    if (offset < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Offset must be a positive integer");
+                    continue;
+                }
+                break;
+            }
+            System.out.printf("Write: ");
+            String writeString = scanner.nextLine();
+            byte[] sendData = marshaller.writeFileMarshal(2, filePathString, offset, writeString);
+
+            // Create packet to send to server
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+            // Send packet to server
+            clientSocket.send(sendPacket);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void receive() {
+        try {
             byte[] receiveData = new byte[1024];
 
             // Receive response from server
@@ -130,7 +168,10 @@ public class UDPClient {
                     // Print response from server
                     System.out.println("Server Replied: " + unmarshalledStrings[1]);
                     break;
+
                 default:
+                    System.out
+                            .println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
                     break;
             }
         } catch (Exception e) {
@@ -140,10 +181,23 @@ public class UDPClient {
 
     public void monitorUpdates(InetAddress serverAddress, int serverPort) {
         try {
-            System.out.println("Select File to monitor");
+            int duration = 0;
+            System.out.printf("Select File to monitor: ");
             String filePath = scanner.nextLine();
-            System.out.println("Select Duration to monitor");
-            int duration = scanner.nextInt();
+            while (true) {
+                System.out.printf("Select Duration to monitor: ");
+                String durationString = scanner.nextLine();
+                try {
+                    duration = Integer.parseInt(durationString);
+                    if (duration < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.printf("duration must be a positive integer");
+                    continue;
+                }
+                break;
+            }
             System.out.println("Scanning for updates on " + filePath + " for " + duration + " seconds");
             byte[] sendData = marshaller.monitorFileMarshal(3, filePath, duration);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
@@ -156,10 +210,13 @@ public class UDPClient {
                 clientSocket.receive(receivePacket);
 
                 String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
-                if (unmarshalledStrings[2] == "End") {
+                String message = unmarshalledStrings[1].trim();
+                if (message == "1") {
+                    System.out.println("Ending Monitoring");
                     break;
                 } else {
-                    System.out.println(unmarshalledStrings[2]);
+                    System.out.println(message);
+                    System.out.println(message.length());
                 }
             }
 

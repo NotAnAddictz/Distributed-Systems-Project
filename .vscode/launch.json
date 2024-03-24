@@ -9,14 +9,17 @@
       "name": "UDPServer",
       "request": "launch",
       "mainClass": "server.UDPServer",
-      "projectName": "Distributed-Systems-Project_54f5e6d6"
+      "projectName": "Distributed-Systems-Project_54f5e6d6",
+      "args": 8888,
     },
     {
       "type": "java",
       "name": "UDPClient",
       "request": "launch",
       "mainClass": "client.UDPClient",
-      "projectName": "Distributed-Systems-Project_54f5e6d6"
+      "projectName": "Distributed-Systems-Project_54f5e6d6",
+      "args": "DESKTOP-TM2805E 8888"
+
     },
     {
       "type": "java",
