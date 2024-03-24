@@ -38,17 +38,24 @@ public class UDPServer {
                 String[] unmarshalledStrings = marshaller.unmarshal(receivedMessage);
                 
                 int clientChosen = Integer.parseInt(unmarshalledStrings[0]);
+                String fileContent = "";
                 
                 switch (clientChosen) {
                     case 1:
-                        String fileContent = readFile(unmarshalledStrings);
+                        fileContent = readFile(unmarshalledStrings);
                         returnedMessage = marshaller.marshal(1, fileContent);
                         TimeUnit.SECONDS.sleep(5);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
                         serverSocket.send(sendPacket);
                         break;
-                
+                    case 2:
+                        fileContent = writeToFile(unmarshalledStrings);
+                        returnedMessage = marshaller.marshal(1, fileContent);
+                        TimeUnit.SECONDS.sleep(2);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
+                        serverSocket.send(sendPacket);
                     default:
+                        System.out.println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
                         break;
                 }
             }
@@ -77,6 +84,51 @@ public class UDPServer {
 
             // Convert the byte array to a String
             String readValue = new String(buffer, StandardCharsets.UTF_8);
+            return readValue;
+        } catch (FileNotFoundException e) {
+            content = "File does not exist on server";
+        } catch (EOFException e) {
+            content = "Offset exceed file length";
+        } catch (IOException e) {
+            content = "IOException Error";
+            e.printStackTrace();
+        }
+            return content;
+    }
+
+    public static String writeToFile(String[] unmarshalledStrings){
+        String filePath = "src/resources/" + unmarshalledStrings[1];
+        int offset = Integer.valueOf(unmarshalledStrings[2]);
+        String write = unmarshalledStrings[3].trim();
+        String content = "No content in file";
+        
+        try (
+            // Read file content
+            RandomAccessFile file = new RandomAccessFile(filePath, "rw")) {
+            file.seek(offset);
+
+            // Read data after offset
+            StringBuilder restOfFile = new StringBuilder();
+            int data;
+            while ((data = file.read()) != -1) {
+                restOfFile.append((char) data);
+            }
+
+            // Write to offset
+            file.seek(offset);
+            file.write(write.getBytes());
+
+            // Write old data to the end of the new data
+            file.seek(offset + write.length());
+            file.writeBytes(restOfFile.toString());
+
+            // Returns the updated file
+            file.seek(0);
+            String readValue = "";
+            while (file.getFilePointer() < file.length()) {
+                readValue += file.readLine();
+            }
+            file.close();
             return readValue;
         } catch (FileNotFoundException e) {
             content = "File does not exist on server";

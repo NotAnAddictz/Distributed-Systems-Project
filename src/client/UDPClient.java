@@ -18,7 +18,7 @@ public class UDPClient {
         udpClient.startProgram(serverHostname, serverPort);
     }
     
-    public void startProgram(String serverHostname, int serverPort){
+    public void startProgram(String serverHostname, int serverPort) {
         scanner = new Scanner(System.in);
         clientSocket = null;
         marshaller = new Marshaller();
@@ -34,6 +34,7 @@ public class UDPClient {
             while (chosen != 5) {
 
                 System.out.println("1: Read file on (n) bytes.");
+                System.out.println("2: Write to file.");
                 System.out.println("5: Exit program.");
                 System.out.print("Enter option: ");
                 chosen = Integer.parseInt(scanner.nextLine());
@@ -42,13 +43,18 @@ public class UDPClient {
                     case 1:
                         readFile(serverAddress, serverPort);
                         break;
+                    case 2:
+                        writeToFile(serverAddress, serverPort);
+                        break;
                     case 5:
                         System.out.println("Exiting program.");
+                        System.exit(200);
                         break;
                     default:
                         System.out.println("Invalid option.");
                         break;
                 }
+                receive();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -60,7 +66,7 @@ public class UDPClient {
         }
     }
 
-    public void readFile(InetAddress serverAddress, int serverPort){
+    public void readFile(InetAddress serverAddress, int serverPort) {
         try {
             int offset;
             int readBytes;
@@ -101,7 +107,46 @@ public class UDPClient {
 
             // Send packet to server
             clientSocket.send(sendPacket);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
+    public void writeToFile(InetAddress serverAddress, int serverPort) {
+        try {
+            int offset;
+            System.out.printf("Enter file path: ");
+            String filePathString = scanner.nextLine();
+            while (true) {
+                System.out.printf("Enter offset(bytes): ");
+                String offsetString = scanner.nextLine();
+                try {
+                    offset = Integer.parseInt(offsetString);
+                    if (offset < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Offset must be a positive integer");
+                    continue;
+                }
+                break;
+            }
+            System.out.printf("Write: ");
+            String writeString = scanner.nextLine();
+            byte[] sendData = marshaller.writeFileMarshal(2, filePathString, offset, writeString);
+
+            // Create packet to send to server
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+            // Send packet to server
+            clientSocket.send(sendPacket);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void receive() {
+        try {
             byte[] receiveData = new byte[1024];
 
             // Receive response from server
@@ -118,6 +163,7 @@ public class UDPClient {
                         break;
                 
                     default:
+                        System.out.println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
                         break;
                 }
         } catch (Exception e) {
