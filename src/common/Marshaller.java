@@ -7,16 +7,20 @@ public class Marshaller {
 
     // Convert String to byte array
     // public byte[] marshal(String str) {
-    //     return str.getBytes(StandardCharsets.UTF_8);
+    // return str.getBytes(StandardCharsets.UTF_8);
     // }
 
     // Convert byte array to String
     // public String unmarshal(byte[] bytes) {
-    //     return new String(bytes, StandardCharsets.UTF_8);
+    // return new String(bytes, StandardCharsets.UTF_8);
     // }
 
-    public byte[] readFileMarshal(int funcID, String fileName, int offset, int readBytes){
+    public byte[] readFileMarshal(int funcID, String fileName, int offset, int readBytes) {
         return marshal(funcID, fileName, Integer.toString(offset), Integer.toString(readBytes));
+    }
+
+    public byte[] monitorFileMarshal(int funcID, String fileName, int duration) {
+        return marshal(funcID, fileName, Integer.toString(duration));
     }
 
     public byte[] marshal(int funcID, String... args) {

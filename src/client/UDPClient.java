@@ -1,6 +1,8 @@
 package client;
 
 import java.net.*;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 
@@ -10,6 +12,7 @@ public class UDPClient {
     DatagramSocket clientSocket;
     Scanner scanner;
     Marshaller marshaller;
+
     public static void main(String[] args) {
         String serverHostname = args[0];
         int serverPort = Integer.parseInt(args[1]);
@@ -17,8 +20,8 @@ public class UDPClient {
         UDPClient udpClient = new UDPClient();
         udpClient.startProgram(serverHostname, serverPort);
     }
-    
-    public void startProgram(String serverHostname, int serverPort){
+
+    public void startProgram(String serverHostname, int serverPort) {
         scanner = new Scanner(System.in);
         clientSocket = null;
         marshaller = new Marshaller();
@@ -34,13 +37,24 @@ public class UDPClient {
             while (chosen != 5) {
 
                 System.out.println("1: Read file on (n) bytes.");
+                System.out.println("2: Write file on (n) bytes.");
+                System.out.println("3: Monitor updates on file.");
                 System.out.println("5: Exit program.");
                 System.out.print("Enter option: ");
                 chosen = Integer.parseInt(scanner.nextLine());
-                
-                switch(chosen) {
+
+                switch (chosen) {
                     case 1:
                         readFile(serverAddress, serverPort);
+                        break;
+                    case 2:
+                        break;
+                    case 3:
+                        // Creating callback object
+                        Callback callbackObject = new CallbackObject();
+                        monitorUpdates(serverAddress, serverPort);
+                        break;
+                    case 4:
                         break;
                     case 5:
                         System.out.println("Exiting program.");
@@ -60,7 +74,7 @@ public class UDPClient {
         }
     }
 
-    public void readFile(InetAddress serverAddress, int serverPort){
+    public void readFile(InetAddress serverAddress, int serverPort) {
         try {
             int offset;
             int readBytes;
@@ -112,16 +126,59 @@ public class UDPClient {
             int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
 
             switch (serverChosen) {
-                    case 1:
-                        // Print response from server
-                        System.out.println("Server Replied: " + unmarshalledStrings[1]);
-                        break;
-                
-                    default:
-                        break;
-                }
+                case 1:
+                    // Print response from server
+                    System.out.println("Server Replied: " + unmarshalledStrings[1]);
+                    break;
+                default:
+                    break;
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public void monitorUpdates(InetAddress serverAddress, int serverPort) {
+        try {
+            System.out.println("Select File to monitor");
+            String filePath = scanner.nextLine();
+            System.out.println("Select Duration to monitor");
+            int duration = scanner.nextInt();
+            System.out.println("Scanning for updates on " + filePath + " for " + duration + " seconds");
+            byte[] sendData = marshaller.monitorFileMarshal(3, filePath, duration);
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+            clientSocket.send(sendPacket);
+            while (true) {
+                byte[] receiveData = new byte[1024];
+                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+
+                clientSocket.receive(receivePacket);
+
+                String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
+                if (unmarshalledStrings[2] == "End") {
+                    break;
+                } else {
+                    System.out.println(unmarshalledStrings[2]);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public interface Callback extends Remote {
+        void callbackMethod() throws RemoteException;
+    };
+
+    public class CallbackObject implements Callback {
+        @Override
+        public void callbackMethod() throws RemoteException {
+            System.out.println("File updated");
+        }
+
+        String filePath;
+
     }
 }

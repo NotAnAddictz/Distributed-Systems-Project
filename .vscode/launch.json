@@ -1,53 +1,67 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "java",
-            "name": "UDPClient",
-            "request": "launch",
-            "mainClass": "client.UDPClient",
-            "projectName": "Distributed-Systems-Project_3694c081",
-            "args": "localhost 9877"
-        },
-        {
-            "type": "java",
-            "name": "UDPServer",
-            "request": "launch",
-            "mainClass": "server.UDPServer",
-            "projectName": "Distributed-Systems-Project_3694c081",
-            "args": "9877"
-        },
-        {
-            "type": "java",
-            "name": "Current File",
-            "request": "launch",
-            "mainClass": "${file}"
-        },
-        {
-            "type": "java",
-            "name": "ReplyTest",
-            "request": "launch",
-            "mainClass": "Testing.ReplyTest",
-            "projectName": "Distributed-Systems-Project_7172db30"
-        },
-        {
-            "type": "java",
-            "name": "UDPClient",
-            "request": "launch",
-            "mainClass": "client.UDPClient",
-            "projectName": "Distributed-Systems-Project_7172db30",
-            "args": "localhost 9877"
-        },
-        {
-            "type": "java",
-            "name": "UDPServer",
-            "request": "launch",
-            "mainClass": "server.UDPServer",
-            "projectName": "Distributed-Systems-Project_7172db30",
-            "args": "9877"
-        }
-    ]
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "UDPServer",
+      "request": "launch",
+      "mainClass": "server.UDPServer",
+      "projectName": "Distributed-Systems-Project_54f5e6d6"
+    },
+    {
+      "type": "java",
+      "name": "UDPClient",
+      "request": "launch",
+      "mainClass": "client.UDPClient",
+      "projectName": "Distributed-Systems-Project_54f5e6d6"
+    },
+    {
+      "type": "java",
+      "name": "UDPClient",
+      "request": "launch",
+      "mainClass": "client.UDPClient",
+      "projectName": "Distributed-Systems-Project_3694c081",
+      "args": "localhost 9877"
+    },
+    {
+      "type": "java",
+      "name": "UDPServer",
+      "request": "launch",
+      "mainClass": "server.UDPServer",
+      "projectName": "Distributed-Systems-Project_3694c081",
+      "args": "9877"
+    },
+    {
+      "type": "java",
+      "name": "Current File",
+      "request": "launch",
+      "mainClass": "${file}"
+    },
+    {
+      "type": "java",
+      "name": "ReplyTest",
+      "request": "launch",
+      "mainClass": "Testing.ReplyTest",
+      "projectName": "Distributed-Systems-Project_7172db30"
+    },
+    {
+      "type": "java",
+      "name": "UDPClient",
+      "request": "launch",
+      "mainClass": "client.UDPClient",
+      "projectName": "Distributed-Systems-Project_7172db30",
+      "args": "localhost 9877"
+    },
+    {
+      "type": "java",
+      "name": "UDPServer",
+      "request": "launch",
+      "mainClass": "server.UDPServer",
+      "projectName": "Distributed-Systems-Project_7172db30",
+      "args": "9877"
+    }
+  ]
 }
