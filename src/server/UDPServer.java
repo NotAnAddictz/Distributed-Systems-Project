@@ -35,14 +35,14 @@ public class UDPServer {
                 int clientPort = receivePacket.getPort();
 
                 byte[] receivedMessage = receivePacket.getData();
-                String[] unmarshalledStrings = marshaller.readFileUnmarshal(receivedMessage);
+                String[] unmarshalledStrings = marshaller.unmarshal(receivedMessage);
                 
                 int clientChosen = Integer.parseInt(unmarshalledStrings[0]);
                 
                 switch (clientChosen) {
                     case 1:
                         String fileContent = readFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(fileContent);
+                        returnedMessage = marshaller.marshal(1, fileContent);
                         TimeUnit.SECONDS.sleep(5);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
                         serverSocket.send(sendPacket);

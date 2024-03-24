@@ -2,6 +2,7 @@ package client;
 
 import java.net.*;
 import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 
 import common.Marshaller;
 
@@ -61,14 +62,39 @@ public class UDPClient {
 
     public void readFile(InetAddress serverAddress, int serverPort){
         try {
-            System.out.print("Enter file name: ");
-            String fileName = scanner.nextLine();
-            System.out.print("Enter offset(bytes): ");
-            int offset = Integer.parseInt(scanner.nextLine());
-            System.out.print("Enter number of bytes to read: ");
-            int readBytes = Integer.parseInt(scanner.nextLine());
-
-            byte[] sendData = marshaller.readFileMarshal(1, fileName, offset, readBytes);
+            int offset;
+            int readBytes;
+            System.out.printf("Enter file path: ");
+            String filePathString = scanner.nextLine();
+            while (true) {
+                System.out.printf("Enter offset(bytes): ");
+                String offsetString = scanner.nextLine();
+                try {
+                    offset = Integer.parseInt(offsetString);
+                    if (offset < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Offset must be a positive integer");
+                    continue;
+                }
+                break;
+            }
+            while (true) {
+                System.out.printf("Enter number of bytes to read: ");
+                String byteString = scanner.nextLine();
+                try {
+                    readBytes = Integer.parseInt(byteString);
+                    if (readBytes < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Number of bytes must be a positive integer");
+                    continue;
+                }
+                break;
+            }
+            byte[] sendData = marshaller.readFileMarshal(1, filePathString, offset, readBytes);
 
             // Create packet to send to server
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
@@ -82,13 +108,20 @@ public class UDPClient {
             DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
             clientSocket.receive(receivePacket);
 
-            // Print response from server
-            String responseMessage = new String(receivePacket.getData(), 0, receivePacket.getLength());
-            System.out.println("Server Replied: " + responseMessage);
+            String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
+            int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
 
+            switch (serverChosen) {
+                    case 1:
+                        // Print response from server
+                        System.out.println("Server Replied: " + unmarshalledStrings[1]);
+                        break;
+                
+                    default:
+                        break;
+                }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
     }
 }
