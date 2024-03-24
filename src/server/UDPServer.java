@@ -1,6 +1,7 @@
 package server;
 
 import java.io.EOFException;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -18,10 +19,8 @@ public class UDPServer {
         try {
             // Create a UDP socket
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
-
-            byte[] receiveData = new byte[1024];
-
             while (true) {
+                byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 byte[] returnedMessage;
                 DatagramPacket sendPacket;
@@ -44,16 +43,24 @@ public class UDPServer {
                     case 1:
                         fileContent = readFile(unmarshalledStrings);
                         returnedMessage = marshaller.marshal(1, fileContent);
-                        TimeUnit.SECONDS.sleep(5);
+                        TimeUnit.SECONDS.sleep(1);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
                         serverSocket.send(sendPacket);
                         break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
                         returnedMessage = marshaller.marshal(1, fileContent);
-                        TimeUnit.SECONDS.sleep(2);
+                        TimeUnit.SECONDS.sleep(1);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
                         serverSocket.send(sendPacket);
+                        break;
+                    case 4:
+                        fileContent = listFiles(unmarshalledStrings);
+                        returnedMessage = marshaller.marshal(2, fileContent);
+                        TimeUnit.SECONDS.sleep(1);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress, clientPort);
+                        serverSocket.send(sendPacket);
+                        break;
                     default:
                         System.out.println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
                         break;
@@ -69,7 +76,7 @@ public class UDPServer {
     }
 
     public static String readFile(String[] unmarshalledStrings){
-        String filePath = "src/resources/" + unmarshalledStrings[1];
+        String filePath = "bin/resources/" + unmarshalledStrings[1];
         int offset = Integer.valueOf(unmarshalledStrings[2]);
         int noOfBytes = Integer.valueOf(unmarshalledStrings[3].trim()); // Number of bytes to read
         String content = "No content in file";
@@ -97,7 +104,7 @@ public class UDPServer {
     }
 
     public static String writeToFile(String[] unmarshalledStrings){
-        String filePath = "src/resources/" + unmarshalledStrings[1];
+        String filePath = "bin/resources/" + unmarshalledStrings[1];
         int offset = Integer.valueOf(unmarshalledStrings[2]);
         String write = unmarshalledStrings[3].trim();
         String content = "No content in file";
@@ -139,5 +146,22 @@ public class UDPServer {
             e.printStackTrace();
         }
             return content;
+    }
+
+    public static String listFiles(String[] unmarshalledStrings) {
+        File folder = new File("bin/resources/");
+        return listFilesInFolder(folder, 0);
+    }
+
+    private static String listFilesInFolder(File folder, int depth) {
+        String files = "";
+        for (final File file : folder.listFiles()) {
+            if (file.isDirectory()) {
+                listFilesInFolder(file, depth + 1);
+            } else {
+                files += " ".repeat(depth) + file.getName() + "\n";
+            }
+        }
+        return files;
     }
 }

@@ -10,6 +10,8 @@ public class UDPClient {
     DatagramSocket clientSocket;
     Scanner scanner;
     Marshaller marshaller;
+    InetAddress serverAddress;
+    int serverPort;
     public static void main(String[] args) {
         String serverHostname = args[0];
         int serverPort = Integer.parseInt(args[1]);
@@ -22,29 +24,34 @@ public class UDPClient {
         scanner = new Scanner(System.in);
         clientSocket = null;
         marshaller = new Marshaller();
+        this.serverPort = serverPort;
 
         try {
             // Create a UDP socket
             clientSocket = new DatagramSocket();
 
             // Get server's address
-            InetAddress serverAddress = InetAddress.getByName(serverHostname);
+            serverAddress = InetAddress.getByName(serverHostname);
 
             int chosen = 0;
             while (chosen != 5) {
 
                 System.out.println("1: Read file on (n) bytes.");
                 System.out.println("2: Write to file.");
+                System.out.println("3: List all files.");
                 System.out.println("5: Exit program.");
                 System.out.print("Enter option: ");
                 chosen = Integer.parseInt(scanner.nextLine());
                 
                 switch(chosen) {
                     case 1:
-                        readFile(serverAddress, serverPort);
+                        readFile();
                         break;
                     case 2:
-                        writeToFile(serverAddress, serverPort);
+                        writeToFile();
+                        break;
+                    case 3:
+                        listAllFiles();
                         break;
                     case 5:
                         System.out.println("Exiting program.");
@@ -66,10 +73,12 @@ public class UDPClient {
         }
     }
 
-    public void readFile(InetAddress serverAddress, int serverPort) {
+    public void readFile() {
         try {
             int offset;
             int readBytes;
+            listAllFiles();
+            receive();
             System.out.printf("Enter file path: ");
             String filePathString = scanner.nextLine();
             while (true) {
@@ -112,9 +121,11 @@ public class UDPClient {
         }
     }
 
-    public void writeToFile(InetAddress serverAddress, int serverPort) {
+    public void writeToFile() {
         try {
             int offset;
+            listAllFiles();
+            receive();
             System.out.printf("Enter file path: ");
             String filePathString = scanner.nextLine();
             while (true) {
@@ -144,6 +155,20 @@ public class UDPClient {
             e.printStackTrace();
         }
     }
+    
+    public void listAllFiles() {
+        try {
+            byte[] sendData = marshaller.marshal(4);
+
+            // Create packet to send to server
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+            // Send packet to server
+            clientSocket.send(sendPacket);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     public void receive() {
         try {
@@ -161,7 +186,10 @@ public class UDPClient {
                         // Print response from server
                         System.out.println("Server Replied: " + unmarshalledStrings[1]);
                         break;
-                
+                    case 2:
+                        System.out.println("List of files: ");
+                        System.out.println(unmarshalledStrings[1]);
+                        break;
                     default:
                         System.out.println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
                         break;

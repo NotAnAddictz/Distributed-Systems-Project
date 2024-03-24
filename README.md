@@ -26,7 +26,7 @@ The `JAVA PROJECTS` view allows you to manage your dependencies. More details ca
 > Design experiments to compare between the two semantics
 
 ## Tasks
-> Reading of File
+# Reading of File
 - Input: Filename, Offset in bytes, Bytes to read.
 - Return: Bytes read starting from designated offset
 - Error Handling: File does not exist, offset exceeds length.
@@ -34,7 +34,7 @@ The `JAVA PROJECTS` view allows you to manage your dependencies. More details ca
 - Example: 
 - If 2 bytes are read from the file content “abcd” at offset 1, the service returns “bc”.
 
-> Writing to File
+# Writing to File
 - Input: Filename, Offset in bytes, Bytes to write.
 - Return: An acknowledgement
 - Error Handling: File does not exist, offset exceeds length.
@@ -42,7 +42,7 @@ The `JAVA PROJECTS` view allows you to manage your dependencies. More details ca
 - Example: 
 - If “b” is inserted into the file content “acd” at offset 1, the updated file content becomes “abcd”.
 
-> Monitor File
+# Monitor File
 - Input: Filename, Duration in seconds
 - Return: File content on every update 
 - Error Handling: File does not exist
@@ -51,13 +51,14 @@ The `JAVA PROJECTS` view allows you to manage your dependencies. More details ca
 - If File set to be monitored, any update to the file on the Server by other Clients will send the updated content to the Client monitoring that file.
 
 ## Additional Tasks
-> Idempotent task
-? 
+# Idempotent task
+List all files
+Delete file
 
-> Non-Idempotent task
+# Non-Idempotent task
 ?
 
-> Client Cache Files
+# Client Cache Files
 - No need for replacemente algo
 - One-copy update
 - Implement args, t, to determine freshness interval
