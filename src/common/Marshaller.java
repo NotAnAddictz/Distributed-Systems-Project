@@ -15,7 +15,11 @@ public class Marshaller {
 
     public String[] unmarshal(byte[] marshaledData) {
         String concatenatedString = new String(marshaledData);
-        return concatenatedString.split(DELIMITER);
+        String[] strArr = concatenatedString.split(DELIMITER);
+        for (int i = 0; i < strArr.length; i++) {
+            strArr[i] = strArr[i].trim();
+        }
+        return strArr;
     }
 
     public byte[] readFileMarshal(int funcID, String fileName, int offset, int readBytes) {

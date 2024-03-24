@@ -42,7 +42,7 @@ public class UDPClient {
                 System.out.println("5: Exit program.");
                 System.out.print("Enter option: ");
                 chosen = Integer.parseInt(scanner.nextLine());
-
+                boolean monitoring = false;
                 switch (chosen) {
                     case 1:
                         readFile(serverAddress, serverPort);
@@ -52,6 +52,7 @@ public class UDPClient {
                         break;
                     case 3:
                         monitorUpdates(serverAddress, serverPort);
+                        monitoring = true;
                         break;
                     case 5:
                         System.out.println("Exiting program.");
@@ -61,7 +62,11 @@ public class UDPClient {
                         System.out.println("Invalid option.");
                         break;
                 }
-                receive();
+                if (!monitoring) {
+                    receive();
+                    monitoring = false;
+                }
+
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -210,13 +215,12 @@ public class UDPClient {
                 clientSocket.receive(receivePacket);
 
                 String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
-                String message = unmarshalledStrings[1].trim();
-                if (message == "1") {
+                int message = Integer.parseInt(unmarshalledStrings[1]);
+                if (message == 1) {
                     System.out.println("Ending Monitoring");
                     break;
                 } else {
-                    System.out.println(message);
-                    System.out.println(message.length());
+                    System.out.println(unmarshalledStrings[2]);
                 }
             }
 
