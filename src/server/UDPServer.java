@@ -61,7 +61,7 @@ public class UDPServer {
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
                                 clientPort);
                         serverSocket.send(sendPacket);
-                        List<Callback> clientList = registry.get("src/resources/" + unmarshalledStrings[1]);
+                        List<Callback> clientList = registry.get("bin/resources/" + unmarshalledStrings[1]);
                         System.out.println("Getting ClientList");
                         if (clientList != null) {
                             System.out.println(clientList.size());
@@ -85,7 +85,7 @@ public class UDPServer {
                         serverSocket.send(sendPacket);
                         break;
                     case 4:
-                        String filePath = "src/resources/" + unmarshalledStrings[1];
+                        String filePath = "bin/resources/" + unmarshalledStrings[1];
                         int duration = Integer.parseInt(unmarshalledStrings[2]); // Duration in seconds
                         Callback callback = new Callback(clientAddress, clientPort);
                         new java.util.Timer().schedule(new removeMonitor(callback, registry, filePath, serverSocket),

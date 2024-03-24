@@ -31,3 +31,4 @@ replay_pid*
 
 # Config files
 .vscode/launch.json
+/bin
