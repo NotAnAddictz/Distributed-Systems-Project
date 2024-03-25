@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Dictionary;
 import java.util.concurrent.TimeUnit;
@@ -107,6 +108,13 @@ public class UDPServer {
                                 clientPort);
                         serverSocket.send(sendPacket);
                         break;
+                    case 6:
+                        fileContent = insertFile(unmarshalledStrings);
+                        returnedMessage = marshaller.marshal(1, fileContent);
+                        TimeUnit.SECONDS.sleep(1);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
+                                clientPort);
+                        serverSocket.send(sendPacket);
                     default:
                         System.out.println(
                                 "Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
@@ -211,6 +219,43 @@ public class UDPServer {
             }
         } catch (FileNotFoundException e) {
             content = e.getMessage();
+        }
+        return content;
+    }
+
+    public static String insertFile(String[] unmarshalledStrings) {
+        String filePath = "bin/resources/" + unmarshalledStrings[1];
+        String fileContent = unmarshalledStrings[2];
+        String content = fileContent;
+        File file;
+        RandomAccessFile raf;
+
+        try {
+            while (true) {
+                file = new File(filePath);
+                if (file.createNewFile()) {
+                    raf = new RandomAccessFile(file, "rw");
+                    raf.seek(0);
+                    raf.write(fileContent.getBytes());
+                    raf.close();
+                    content = "" + filePath + " has been created in the file system";
+                    break;
+                } else {
+                    String fileType = "";
+                    int dotIndex = filePath.lastIndexOf('.');
+                    if (dotIndex > 0 && dotIndex < filePath.length() - 1) {
+                        fileType = filePath.substring(dotIndex + 1).toLowerCase();
+                        filePath = filePath.substring(0, dotIndex);
+                    }
+                    filePath = filePath + "_copy." + fileType;
+                }
+            }
+        } catch (FileNotFoundException e) {
+            content = e.getMessage();
+        }
+        catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         }
         return content;
     }

@@ -1,6 +1,10 @@
 package client;
 
+import java.io.File;
+import java.io.RandomAccessFile;
 import java.net.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.Scanner;
@@ -44,7 +48,7 @@ public class UDPClient {
                 System.out.println("3: List all files.");
                 System.out.println("4: Monitor File Updates.");
                 System.out.println("5: Delete file.");
-                System.out.println("6: Non-Idempotent Action.");
+                System.out.println("6: Insert file.");
                 System.out.println("7: Exit program.");
                 System.out.println("==================================");
                 System.out.print("Enter option: ");
@@ -71,19 +75,22 @@ public class UDPClient {
                             noReceive = true;
                         };
                         break;
+                    case 6:
+                        insertFile();
+                        break;
                     case 7:
                         System.out.println("Exiting program.");
                         System.exit(200);
                         break;
                     default:
                         System.out.println("Invalid option.");
+                        noReceive = true;
                         break;
                 }
                 if (!noReceive) {
                     receive();
                     noReceive = false;
                 }
-
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -286,6 +293,26 @@ public class UDPClient {
                 clientSocket.send(sendPacket);
                 return true;
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean insertFile() {
+        try {
+            System.out.printf("Enter filepath(local file) to insert: ");
+            String filePathString = scanner.nextLine();
+            System.out.printf("Enter filepath(remote file): ");
+            String insertPath = scanner.nextLine();
+            String content = new String(Files.readAllBytes(Paths.get(filePathString)));
+            byte[] sendData = marshaller.insertFileMarshal(6, insertPath, content);
+
+            // Create packet to send to server
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+            // Send packet to server
+            clientSocket.send(sendPacket);
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -38,4 +38,8 @@ public class Marshaller {
     public byte[] deleteFileMarshal(int funcID, String fileName) {
         return marshal(funcID, fileName);
     }
+    
+    public byte[] insertFileMarshal(int funcID, String fileName, String content) {
+        return marshal(funcID, fileName, content);
+    }
 }
