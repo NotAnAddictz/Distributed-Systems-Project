@@ -99,7 +99,14 @@ public class UDPServer {
                             registry.put(filePath, currentArray);
                         }
                         break;
-
+                    case 5:
+                        fileContent = deleteFile(unmarshalledStrings);
+                        returnedMessage = marshaller.marshal(1, fileContent);
+                        TimeUnit.SECONDS.sleep(1);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
+                                clientPort);
+                        serverSocket.send(sendPacket);
+                        break;
                     default:
                         System.out.println(
                                 "Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
@@ -186,6 +193,24 @@ public class UDPServer {
         } catch (IOException e) {
             content = "IOException Error";
             e.printStackTrace();
+        }
+        return content;
+    }
+
+    public static String deleteFile(String[] unmarshalledStrings) {
+        String filePath = "bin/resources/" + unmarshalledStrings[1];
+        String content = "";
+
+        try {
+            File file = new File(filePath);
+            if (!file.exists()) {
+                throw new FileNotFoundException("File does not exist on server");
+            }
+            if (file.delete()) {
+                content = "File deleted";
+            }
+        } catch (FileNotFoundException e) {
+            content = e.getMessage();
         }
         return content;
     }

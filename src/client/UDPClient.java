@@ -37,19 +37,21 @@ public class UDPClient {
             serverAddress = InetAddress.getByName(serverHostname);
 
             int chosen = 0;
-            while (chosen != 5) {
+            while (true) {
                 System.out.println("==================================");
                 System.out.println("1: Read file on (n) bytes.");
                 System.out.println("2: Write to file.");
                 System.out.println("3: List all files.");
-                System.out.println("4: Monitor File Updates");
-                System.out.println("5: Exit program.");
+                System.out.println("4: Monitor File Updates.");
+                System.out.println("5: Delete file.");
+                System.out.println("6: Non-Idempotent Action.");
+                System.out.println("7: Exit program.");
                 System.out.println("==================================");
                 System.out.print("Enter option: ");
 
                 chosen = Integer.parseInt(scanner.nextLine());
                 System.out.println("");
-                boolean monitoring = false;
+                boolean noReceive = false;
                 switch (chosen) {
                     case 1:
                         readFile();
@@ -62,9 +64,14 @@ public class UDPClient {
                         break;
                     case 4:
                         monitorUpdates();
-                        monitoring = true;
+                        noReceive = true;
                         break;
                     case 5:
+                        if (!deleteFile()) {
+                            noReceive = true;
+                        };
+                        break;
+                    case 7:
                         System.out.println("Exiting program.");
                         System.exit(200);
                         break;
@@ -72,9 +79,9 @@ public class UDPClient {
                         System.out.println("Invalid option.");
                         break;
                 }
-                if (!monitoring) {
+                if (!noReceive) {
                     receive();
-                    monitoring = false;
+                    noReceive = false;
                 }
 
             }
@@ -258,6 +265,31 @@ public class UDPClient {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public boolean deleteFile() {
+        try {
+            String delete;
+            listAllFiles();
+            receive();
+            System.out.printf("Enter file path: ");
+            String filePathString = scanner.nextLine();
+            System.out.printf("Are you sure? (y/n): ");
+            delete = scanner.nextLine();
+            if (delete.equalsIgnoreCase("y")) {
+                byte[] sendData = marshaller.deleteFileMarshal(5, filePathString);
+
+                // Create packet to send to server
+                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+                // Send packet to server
+                clientSocket.send(sendPacket);
+                return true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     public interface Callback extends Remote {

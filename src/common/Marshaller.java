@@ -34,4 +34,8 @@ public class Marshaller {
     public byte[] monitorFileMarshal(int funcID, String fileName, int duration) {
         return marshal(funcID, fileName, Integer.toString(duration));
     }
+
+    public byte[] deleteFileMarshal(int funcID, String fileName) {
+        return marshal(funcID, fileName);
+    }
 }
