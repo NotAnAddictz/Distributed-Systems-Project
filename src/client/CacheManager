@@ -1,0 +1,61 @@
+import java.util.HashMap;
+import java.util.Map;
+
+public class CacheManager {
+    private Map<String, CacheEntry> cache;
+
+    public CacheManager() {
+        this.cache = new HashMap<>();
+    }
+
+    public void addToCache(String key, String value, long lastModifiedTimestamp, long validationTimestamp) {
+        cache.put(key, new CacheEntry(value, lastModifiedTimestamp, validationTimestamp));
+    }
+
+    public boolean isCached(String key) {
+        return cache.containsKey(key);
+    }
+
+    public String getFromCache(String key, long currentTime, long serverLastModifiedTimestamp) {
+        CacheEntry entry = cache.get(key);
+        if (entry != null && isFresh(entry, currentTime, serverLastModifiedTimestamp)) {
+            return entry.getValue();
+        } else {
+            // Remove stale entry from cache
+            cache.remove(key);
+            return null;
+        }
+    }
+
+    private boolean isFresh(CacheEntry entry, long currentTime, long serverLastModifiedTimestamp) {
+        long elapsedTimeSinceValidation = currentTime - entry.getValidationTimestamp();
+        long elapsedTimeSinceLastModified = serverLastModifiedTimestamp - entry.getLastModifiedTimestamp();
+        
+        // Check if cache entry is within validity period
+        return elapsedTimeSinceValidation <= elapsedTimeSinceLastModified;
+    }
+
+    private static class CacheEntry {
+        private String value;
+        private long lastModifiedTimestamp;
+        private long validationTimestamp;
+
+        public CacheEntry(String value, long lastModifiedTimestamp, long validationTimestamp) {
+            this.value = value;
+            this.lastModifiedTimestamp = lastModifiedTimestamp;
+            this.validationTimestamp = validationTimestamp;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public long getLastModifiedTimestamp() {
+            return lastModifiedTimestamp;
+        }
+
+        public long getValidationTimestamp() {
+            return validationTimestamp;
+        }
+    }
+}
