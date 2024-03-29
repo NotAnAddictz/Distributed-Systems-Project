@@ -47,7 +47,7 @@ public class UDPServer {
                 switch (clientChosen) {
                     case 1:
                         fileContent = readFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(1, fileContent);
+                        returnedMessage = marshaller.marshal(1,unmarshalledStrings[1], unmarshalledStrings[2], unmarshalledStrings[3] , fileContent);
                         TimeUnit.SECONDS.sleep(1);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
                                 clientPort);
@@ -55,7 +55,7 @@ public class UDPServer {
                         break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(1, fileContent);
+                        returnedMessage = marshaller.marshal(4, "File successfully updated");
                         TimeUnit.SECONDS.sleep(1);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
                                 clientPort);
@@ -64,9 +64,8 @@ public class UDPServer {
                         if (clientList != null) {
                             for (Callback callback : clientList) {
                                 String file = unmarshalledStrings[1];
-                                String message = String.format("Update! %s has been updated! \n New content: %s", file,
-                                        fileContent);
-                                returnedMessage = marshaller.marshal(3, "0", message);
+                                String message = String.format("Update! %s has been updated!", file);
+                                returnedMessage = marshaller.marshal(3, "0", message, fileContent);
                                 sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length,
                                         callback.ClientAdd,
                                         callback.ClientPort);
@@ -124,8 +123,8 @@ public class UDPServer {
         String content = "No content in file";
 
         try (
-                // Read file content
-                RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
+            // Read file content
+            RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
             file.seek(offset);
             byte[] buffer = new byte[noOfBytes];
             file.readFully(buffer);
@@ -135,11 +134,11 @@ public class UDPServer {
             String readValue = new String(buffer, StandardCharsets.UTF_8);
             return readValue;
         } catch (FileNotFoundException e) {
-            content = "File does not exist on server";
+            content = "404:File does not exist on server.";
         } catch (EOFException e) {
-            content = "Offset exceed file length";
+            content = "404:End of file error.";
         } catch (IOException e) {
-            content = "IOException Error";
+            content = "404:IOException Error";
             e.printStackTrace();
         }
         return content;
@@ -178,6 +177,7 @@ public class UDPServer {
                 readValue += file.readLine();
             }
             file.close();
+            
             return readValue;
         } catch (FileNotFoundException e) {
             content = "File does not exist on server";

@@ -4,7 +4,6 @@ import java.net.*;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.Scanner;
-import java.util.concurrent.TimeUnit;
 
 import common.Marshaller;
 
@@ -14,19 +13,23 @@ public class UDPClient {
     Marshaller marshaller;
     InetAddress serverAddress;
     int serverPort;
+    CacheManager cacheManager;
 
     public static void main(String[] args) {
         String serverHostname = args[0];
         int serverPort = Integer.parseInt(args[1]);
-
+        long freshnessIntervalInSeconds = Long.parseLong(args[2]);
+        
         UDPClient udpClient = new UDPClient();
-        udpClient.startProgram(serverHostname, serverPort);
+        udpClient.startProgram(serverHostname, serverPort, freshnessIntervalInSeconds);
     }
 
-    public void startProgram(String serverHostname, int serverPort) {
+    public void startProgram(String serverHostname, int serverPort, long freshnessIntervalInSeconds) {
+        System.out.println(String.format("Starting client {Server Name: %s | Port: %s | FreshnessInterval: %s}", serverHostname, serverPort, freshnessIntervalInSeconds));
         scanner = new Scanner(System.in);
         clientSocket = null;
         marshaller = new Marshaller();
+        cacheManager = new CacheManager(freshnessIntervalInSeconds);
         this.serverPort = serverPort;
 
         try {
@@ -50,19 +53,31 @@ public class UDPClient {
                 chosen = Integer.parseInt(scanner.nextLine());
                 System.out.println("");
                 boolean monitoring = false;
+                Boolean readFromFile;
                 switch (chosen) {
                     case 1:
-                        readFile();
+                        readFromFile = readFile();
+                        if (readFromFile) {
+                            //only require receive() when getting data from server.
+                            //skip this when cache has required data.
+                            receive();
+                        }
                         break;
                     case 2:
                         writeToFile();
+                        receive();
                         break;
                     case 3:
                         listAllFiles();
+                        receive();
                         break;
                     case 4:
                         monitorUpdates();
                         monitoring = true;
+                        if (!monitoring) {
+                            receive();
+                            monitoring = false;
+                        }
                         break;
                     case 5:
                         System.out.println("Exiting program.");
@@ -72,11 +87,6 @@ public class UDPClient {
                         System.out.println("Invalid option.");
                         break;
                 }
-                if (!monitoring) {
-                    receive();
-                    monitoring = false;
-                }
-
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -98,15 +108,24 @@ public class UDPClient {
 
             String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
             int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
-
             switch (serverChosen) {
                 case 1:
-                    // Print response from server
-                    System.out.println("Server Replied: " + unmarshalledStrings[1]);
+                    // Print response from server for READ FILE
+                    String data = unmarshalledStrings[4];
+                    if (data.startsWith("404:")) {
+                        data = data.substring(4);
+                    } else {
+                        cacheManager.addToCache(unmarshalledStrings[1], Integer.parseInt(unmarshalledStrings[2]), data);
+                    }
+                    System.out.println("Server Replied: " + data);
                     break;
                 case 2:
                     System.out.println("List of files: ");
                     System.out.println(unmarshalledStrings[1]);
+                    break;
+                case 4:
+                    // Print response from server for WRITE TO FILE
+                    System.out.println("Server Replied: " + unmarshalledStrings[1]);
                     break;
                 default:
                     System.out
@@ -118,7 +137,7 @@ public class UDPClient {
         }
     }
 
-    public void readFile() {
+    public boolean readFile() {
         try {
             int offset;
             int readBytes;
@@ -154,16 +173,27 @@ public class UDPClient {
                 }
                 break;
             }
-            byte[] sendData = marshaller.readFileMarshal(1, filePathString, offset, readBytes);
 
-            // Create packet to send to server
-            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+            String data = cacheManager.readFromCache(filePathString, offset, readBytes);
+            if (data != null) {
+                //Data in cache
+                System.out.println("Data found in cache: " + data);
+                return false;
+            } else {
+                //Data not cached
+                byte[] sendData = marshaller.readFileMarshal(1, filePathString, offset, readBytes);
 
-            // Send packet to server
-            clientSocket.send(sendPacket);
+                // Create packet to send to server
+                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+                // Send packet to server
+                clientSocket.send(sendPacket);
+                return true;
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return true;
     }
 
     public void writeToFile() {
@@ -190,7 +220,7 @@ public class UDPClient {
             System.out.printf("Write: ");
             String writeString = scanner.nextLine();
             byte[] sendData = marshaller.writeFileMarshal(2, filePathString, offset, writeString);
-
+            cacheManager.addToCache(filePathString, offset, writeString);
             // Create packet to send to server
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
 
@@ -252,6 +282,7 @@ public class UDPClient {
                     break;
                 } else {
                     System.out.println(unmarshalledStrings[2]);
+                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[3]);
                 }
             }
 
