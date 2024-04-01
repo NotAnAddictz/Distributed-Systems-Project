@@ -56,7 +56,7 @@ List all files
 Delete file
 
 # Non-Idempotent task
-?
+Copy file from local to remote
 
 # Client Cache Files
 - No need for replacemente algo

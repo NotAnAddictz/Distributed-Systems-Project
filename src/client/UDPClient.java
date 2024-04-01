@@ -19,6 +19,7 @@ public class UDPClient {
     NetworkClient network;
 
     public static void main(String[] args) {
+        // Program arguments
         String serverHostname = args[0];
         int serverPort = Integer.parseInt(args[1]);
 
@@ -29,11 +30,11 @@ public class UDPClient {
     public void startProgram(String serverHostname, int serverPort) {
         scanner = new Scanner(System.in);
         try {
+            // Configuring client socket
             DatagramSocket socket = new DatagramSocket();
             socket.setSoTimeout(3000);
             network = new NetworkClient(socket, serverHostname, serverPort);
         } catch (UnknownHostException | SocketException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
             scanner.close();
             System.exit(0);
@@ -42,6 +43,7 @@ public class UDPClient {
         try {
             int chosen = 0;
             while (true) {
+                // UI
                 System.out.println("==================================");
                 System.out.println("1: Read file on (n) bytes.");
                 System.out.println("2: Write to file.");
@@ -53,26 +55,32 @@ public class UDPClient {
                 System.out.println("==================================");
                 System.out.print("Enter option: ");
 
+                // User input flow
                 chosen = Integer.parseInt(scanner.nextLine());
                 System.out.println("");
-                boolean noReceive = false;
                 switch (chosen) {
                     case 1:
+                    // Task 1
                         readFile();
                         break;
                     case 2:
+                    // Task 2
                         writeToFile();
                         break;
                     case 3:
+                    // Idempotent Task 3
                         listAllFiles();
                         break;
                     case 4:
+                    // Task 4
                         monitorUpdates();
                         break;
                     case 5:
+                    // Idempotent Task 5
                         deleteFile();
                         break;
                     case 6:
+                    // Non-Idempotent Task 6
                         insertFile();
                         break;
                     case 7:
@@ -92,19 +100,24 @@ public class UDPClient {
     }
 
     public boolean receive(DatagramPacket receivePacket) {
+        // No packet received from server
         if (receivePacket == null) {
             return false;
         }
+
         try {
+            // Read received packet
             String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
             int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
 
+            // Run following actions
             switch (serverChosen) {
                 case 1:
                     // Print response from server
                     System.out.println("Server Replied: " + unmarshalledStrings[2]);
                     break;
                 case 2:
+                    // Display list of files
                     System.out.println("List of files: ");
                     System.out.println(unmarshalledStrings[2]);
                     break;
@@ -120,82 +133,105 @@ public class UDPClient {
         return true;
     }
 
+    // Retrieve txt file on the server and read
     public void readFile() {
         int offset;
         int readBytes;
+
+        // Display all files
         if (listAllFiles()) {
-        System.out.printf("Enter file path: ");
-        String filePathString = scanner.nextLine();
-        String offsetString;
-        while (true) {
-            System.out.printf("Enter offset(bytes): ");
-            offsetString = scanner.nextLine();
-            try {
-                offset = Integer.parseInt(offsetString);
-                if (offset < 0) {
-                    throw new NumberFormatException();
+
+            // If successfully displayed
+            System.out.printf("Enter file path: ");
+            String filePathString = scanner.nextLine();
+            String offsetString;
+
+            // Offset input
+            while (true) {
+                System.out.printf("Enter offset(bytes): ");
+                offsetString = scanner.nextLine();
+                try {
+                    offset = Integer.parseInt(offsetString);
+                    if (offset < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Offset must be a positive integer");
+                    continue;
                 }
-            } catch (NumberFormatException e) {
-                System.out.println("Offset must be a positive integer");
-                continue;
+                break;
             }
-            break;
-        }
-        String byteString;
-        while (true) {
-            System.out.printf("Enter number of bytes to read: ");
-            byteString = scanner.nextLine();
-            try {
-                readBytes = Integer.parseInt(byteString);
-                if (readBytes < 0) {
-                    throw new NumberFormatException();
+
+            // Number of bytes to read input
+            String byteString;
+            while (true) {
+                System.out.printf("Enter number of bytes to read: ");
+                byteString = scanner.nextLine();
+                try {
+                    readBytes = Integer.parseInt(byteString);
+                    if (readBytes < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Number of bytes must be a positive integer");
+                    continue;
                 }
-            } catch (NumberFormatException e) {
-                System.out.println("Number of bytes must be a positive integer");
-                continue;
+                break;
             }
-            break;
+
+            // Send packet
+            try {
+                network.send(1, filePathString, offsetString, byteString);
+                receive(network.receive());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
-        try {
-            network.send(1, filePathString, offsetString, byteString);
-            receive(network.receive());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
     }
 
+    // Retrieve txt file on the server, write to file and send to server for updating
     public void writeToFile() {
         int offset;
+
+        // Display all files
         if (listAllFiles()) {
-        System.out.printf("Enter file path: ");
-        String filePathString = scanner.nextLine();
-        String offsetString;
-        while (true) {
-            System.out.printf("Enter offset(bytes): ");
-            offsetString = scanner.nextLine();
-            try {
-                offset = Integer.parseInt(offsetString);
-                if (offset < 0) {
-                    throw new NumberFormatException();
+
+            // If successfully displayed
+            System.out.printf("Enter file path: ");
+            String filePathString = scanner.nextLine();
+            String offsetString;
+            
+            // Offset input
+            while (true) {
+                System.out.printf("Enter offset(bytes): ");
+                offsetString = scanner.nextLine();
+                try {
+                    offset = Integer.parseInt(offsetString);
+                    if (offset < 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Offset must be a positive integer");
+                    continue;
                 }
-            } catch (NumberFormatException e) {
-                System.out.println("Offset must be a positive integer");
-                continue;
+                break;
             }
-            break;
-        }
-        try {
+
+            // Data to insert into the file
             System.out.printf("Write: ");
             String writeString = scanner.nextLine();
-            network.send(2, filePathString, offsetString, writeString);
-            receive(network.receive());
-        } catch (Exception e) {
-            e.printStackTrace();
+
+            // Send packet
+            try {
+                network.send(2, filePathString, offsetString, writeString);
+                receive(network.receive());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
-    }
 
+    // List all files in the system
     public boolean listAllFiles() {
         try {
             network.send(3);
@@ -206,8 +242,10 @@ public class UDPClient {
         return false;
     }
 
+    // Retrieve txt file on the server and read
     public void monitorUpdates() {
         try {
+            // Select file
             int duration = 0;
             System.out.printf("Select File to monitor: ");
             String filePath = scanner.nextLine();
@@ -226,7 +264,11 @@ public class UDPClient {
                 }
                 break;
             }
+
+
             System.out.println("Scanning for updates on " + filePath + " for " + duration + " seconds");
+            
+            // Send packet
             network.send(4, filePath, durationString);
             while (true) {
                 DatagramPacket receivePacket = network.receive();

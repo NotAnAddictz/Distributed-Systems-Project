@@ -38,7 +38,9 @@ public class NetworkClient {
         } 
     }
 
+    // Client receives a packet from the server
     public DatagramPacket receive() {
+        // Number of retries before Client stops receiving
         int retries = 5;
         while (retries > 0) {
             try {
@@ -48,12 +50,16 @@ public class NetworkClient {
                     // Receive response from server
                     DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                     socket.receive(receivePacket);
+                    
+                    // Check if packet received is meant for packet sent
+                    // Compare packetId
                     if (marshaller.unmarshal(sendPacket.getData())[1].equals(marshaller.unmarshal(receivePacket.getData())[1])) {
                         return receivePacket;
                     }
                 }
             } catch (SocketTimeoutException e) {
                 try {
+                    // resends the packet if it does not receive a reply before timeout
                     if (retries > 1) {
                         socket.send(sendPacket);
                         retries -= 1;
