@@ -8,12 +8,16 @@ import java.io.RandomAccessFile;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Dictionary;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 import java.util.TimerTask;
 
+import common.Helper;
 import common.Marshaller;
 
 public class UDPServer {
@@ -24,8 +28,20 @@ public class UDPServer {
             // Create a UDP socket
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
+            
+            //hashmap for storing lastModified of each file
+            Map<String, Long> lastModifiedMap = new HashMap<>();
+            
+            //manually populate for existing files
+            Long timenow = System.currentTimeMillis();
+            lastModifiedMap.put("file1.txt", timenow);
+            lastModifiedMap.put("file2.txt", timenow);
+            lastModifiedMap.put("file3.txt", timenow);
+            lastModifiedMap.put("testfile.txt", timenow);
+            
 
             while (true) {
+                Helper.printFileLastModifiedTime(lastModifiedMap);
                 byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 byte[] returnedMessage;
@@ -47,7 +63,12 @@ public class UDPServer {
                 switch (clientChosen) {
                     case 1:
                         fileContent = readFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(1,unmarshalledStrings[1], unmarshalledStrings[2], unmarshalledStrings[3] , fileContent);
+                        System.out.println("CLIENT READ: SENDING THE FOLLOWING - " + Arrays.toString(unmarshalledStrings) + " | fileContent and LastModifiedTime: " + String.valueOf(lastModifiedMap.get(unmarshalledStrings[1])));
+                        returnedMessage = marshaller.marshal(1,unmarshalledStrings[1], 
+                                                                unmarshalledStrings[2], 
+                                                                unmarshalledStrings[3] , 
+                                                                fileContent, 
+                                                                String.valueOf(lastModifiedMap.get(unmarshalledStrings[1])));
                         TimeUnit.SECONDS.sleep(1);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
                                 clientPort);
@@ -55,7 +76,12 @@ public class UDPServer {
                         break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(4, "File successfully updated");
+                        
+                        //to ensure lastModifiedTime is the same, server will update and send the time back to client
+                        Long lastModifiedTime = System.currentTimeMillis();
+                        lastModifiedMap.put(unmarshalledStrings[1], lastModifiedTime);
+
+                        returnedMessage = marshaller.marshal(4, "File successfully updated", unmarshalledStrings[1] , String.valueOf(lastModifiedTime));
                         TimeUnit.SECONDS.sleep(1);
                         sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
                                 clientPort);
@@ -65,7 +91,8 @@ public class UDPServer {
                             for (Callback callback : clientList) {
                                 String file = unmarshalledStrings[1];
                                 String message = String.format("Update! %s has been updated!", file);
-                                returnedMessage = marshaller.marshal(3, "0", message, fileContent);
+                                //to update all client's file content and lastModifiedTime
+                                returnedMessage = marshaller.marshal(3, "0", message, fileContent, String.valueOf(lastModifiedTime));
                                 sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length,
                                         callback.ClientAdd,
                                         callback.ClientPort);
@@ -98,6 +125,21 @@ public class UDPServer {
                             registry.put(filePath, currentArray);
                         }
                         break;
+
+                    case 10:
+                        //for client to request modified time of file
+                        Long lastModified = lastModifiedMap.get(unmarshalledStrings[1]);
+                        if (lastModified != null){
+                            returnedMessage = marshaller.marshal(10, String.valueOf(lastModified));
+                        } else {
+                            returnedMessage = marshaller.marshal(10, "Missing file in server");
+                        }
+                        TimeUnit.SECONDS.sleep(1);
+                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
+                                clientPort);
+                        serverSocket.send(sendPacket);
+                        break;
+
 
                     default:
                         System.out.println(
@@ -149,7 +191,6 @@ public class UDPServer {
         int offset = Integer.valueOf(unmarshalledStrings[2]);
         String write = unmarshalledStrings[3].trim();
         String content = "No content in file";
-
         try (
                 // Read file content
                 RandomAccessFile file = new RandomAccessFile(filePath, "rw")) {

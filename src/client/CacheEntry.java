@@ -8,6 +8,7 @@ public class CacheEntry {
     public CacheEntry(char[] data, long lastValidated) {
         this.data = data;
         this.lastValidated = lastValidated;
+        this.lastModified = 0;
     }
 
     public char[] getData() {

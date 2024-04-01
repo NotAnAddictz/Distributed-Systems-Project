@@ -3,8 +3,10 @@ package client;
 import java.net.*;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
+import java.util.Arrays;
 import java.util.Scanner;
 
+import common.Helper;
 import common.Marshaller;
 
 public class UDPClient {
@@ -115,7 +117,8 @@ public class UDPClient {
                     if (data.startsWith("404:")) {
                         data = data.substring(4);
                     } else {
-                        cacheManager.addToCache(unmarshalledStrings[1], Integer.parseInt(unmarshalledStrings[2]), data);
+                        System.out.println("CLIENT RECEIVED: " + Arrays.toString(unmarshalledStrings));
+                        cacheManager.addToCache(unmarshalledStrings[1], Integer.parseInt(unmarshalledStrings[2]), data, Long.parseLong(unmarshalledStrings[5]));
                     }
                     System.out.println("Server Replied: " + data);
                     break;
@@ -125,7 +128,8 @@ public class UDPClient {
                     break;
                 case 4:
                     // Print response from server for WRITE TO FILE
-                    System.out.println("Server Replied: " + unmarshalledStrings[1]);
+                    System.out.println("Server Replied: " + unmarshalledStrings[1] + " | Updated " + unmarshalledStrings[2] + " at " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[3])));
+                    cacheManager.setLastModified(unmarshalledStrings[2], Long.parseLong(unmarshalledStrings[3]));
                     break;
                 default:
                     System.out
@@ -173,23 +177,109 @@ public class UDPClient {
                 }
                 break;
             }
-
-            String data = cacheManager.readFromCache(filePathString, offset, readBytes);
-            if (data != null) {
-                //Data in cache
-                System.out.println("Data found in cache: " + data);
-                return false;
-            } else {
-                //Data not cached
+            if (!cacheManager.fileExistInCache(filePathString) || cacheManager.readFromCache(filePathString, offset, readBytes) == null) {
+                // File does not exist in cache, retrieve from server
+                // lastModifiedTime is updated in receive()
                 byte[] sendData = marshaller.readFileMarshal(1, filePathString, offset, readBytes);
-
-                // Create packet to send to server
                 DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
-
-                // Send packet to server
                 clientSocket.send(sendPacket);
+                System.out.println("FILE NOT IN CACHE");
                 return true;
             }
+            if (!cacheManager.isValidated(filePathString)) {
+                // File exists in cache but not validated
+                //get lastModifiedTime from server
+                //check for lastModified of file from server
+                byte[] sendData = marshaller.marshal(10, filePathString);
+                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+                clientSocket.send(sendPacket);
+                
+                byte[] receiveData = new byte[1024];
+                // Receive response from server
+                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+                clientSocket.receive(receivePacket);
+
+                String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
+                Long lastModifiedTime = Long.parseLong(unmarshalledStrings[1]);
+                System.out.println("FILE IS NOT FRESH");
+
+                if (cacheManager.isModified(filePathString, lastModifiedTime)) {
+                    // File is outdated, get file from server
+                    // lastModifiedTime is updated in receive()
+                    System.out.println("FILE IS NOT UPDATED");
+                    sendData = marshaller.readFileMarshal(1, filePathString, offset, readBytes);
+                    sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+                    clientSocket.send(sendPacket);
+                    return true;
+                } else {
+                    cacheManager.setValidated(filePathString);
+                }
+            }
+            
+            // File exists in cache and is validated or not modified
+            // Read from cache
+            System.out.println("FILE IS UPDATED IN CACHE");
+            String data = cacheManager.readFromCache(filePathString, offset, readBytes);
+            System.out.println("Data found in cache: " + data);
+            return false;
+
+            // if (cacheManager.fileExistInCache(filePathString)) {
+            //     if (!cacheManager.isValidated(filePathString)) {
+            //         //get lastModifiedTime from server
+            //         Long lastModifiedTime = 1L;
+            //         if (cacheManager.isModified(filePathString, lastModifiedTime)) {
+            //             //file is outdated, get file from server. return True 
+            //             //repeat code as file does not exist in cache.
+            //             //lastModifiedTiem is updated in receive()
+            //         } else {
+            //             //file is not outdated so retrieve from cache and update cache lastModifiedTime.
+            //             //readFromCache and Update manually lastModifiedTime here
+            //             //return False
+            //         }
+            //     } else {
+            //         //file in cache is still validate so retrieve from cache
+            //         //readFromCache and Update manually lastModifiedTime here
+            //         //return False
+            //     }
+            // } else {
+            //     //get from server, file does not exist in cache.
+            //     //lastModifiedTime is updated in receive();
+            //     //return True
+            // }
+
+            // String data = cacheManager.readFromCache(filePathString, offset, readBytes);
+            // if (data != null) {
+            //     //Data in cache
+            //     System.out.println("Data found in cache: " + data);
+            //     return false;
+            // } else {
+            //     //check for lastModified of file from server
+            //     byte[] sendData = marshaller.marshal(10, filePathString);
+            //     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+            //     clientSocket.send(sendPacket);
+                
+            //     byte[] receiveData = new byte[1024];
+            //     // Receive response from server
+            //     DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+            //     clientSocket.receive(receivePacket);
+
+            //     String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
+            //     Long lastModifiedTime = Long.parseLong(unmarshalledStrings[1]);
+            //     if (cacheManager.isModified(data, lastModifiedTime)) {
+            //         //Data not cached
+            //         sendData = marshaller.readFileMarshal(1, filePathString, offset, readBytes);
+
+            //         // Create packet to send to server
+            //         sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+
+            //         // Send packet to server
+            //         clientSocket.send(sendPacket);
+            //         return true;
+            //     } else {
+            //         //Data not modified
+            //         //read from cache again?
+            //     }
+            //}
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -220,7 +310,7 @@ public class UDPClient {
             System.out.printf("Write: ");
             String writeString = scanner.nextLine();
             byte[] sendData = marshaller.writeFileMarshal(2, filePathString, offset, writeString);
-            cacheManager.addToCache(filePathString, offset, writeString);
+            cacheManager.addToCache(filePathString, offset, writeString, null);
             // Create packet to send to server
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
 
@@ -281,8 +371,9 @@ public class UDPClient {
                     System.out.println("Ending Monitoring");
                     break;
                 } else {
+                    System.out.println("Monitoring received with funcId: " + unmarshalledStrings[0] + " | lastModifiedTime: " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[4])));
                     System.out.println(unmarshalledStrings[2]);
-                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[3]);
+                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[3], Long.parseLong(unmarshalledStrings[4]));
                 }
             }
 
