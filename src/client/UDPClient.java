@@ -1,21 +1,28 @@
 package client;
 
+import java.io.File;
+import java.io.RandomAccessFile;
 import java.net.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.rmi.MarshalException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.Scanner;
 
 import common.Marshaller;
+import common.NetworkClient;
 
 public class UDPClient {
-    DatagramSocket clientSocket;
     Scanner scanner;
     Marshaller marshaller;
     InetAddress serverAddress;
     int serverPort;
     CacheManager cacheManager;
+    NetworkClient network;
 
     public static void main(String[] args) {
+        // Program arguments
         String serverHostname = args[0];
         int serverPort = Integer.parseInt(args[1]);
         long freshnessIntervalInSeconds = Long.parseLong(args[2]);
@@ -27,59 +34,62 @@ public class UDPClient {
     public void startProgram(String serverHostname, int serverPort, long freshnessIntervalInSeconds) {
         System.out.println(String.format("Starting client {Server Name: %s | Port: %s | FreshnessInterval: %s}", serverHostname, serverPort, freshnessIntervalInSeconds));
         scanner = new Scanner(System.in);
-        clientSocket = null;
-        marshaller = new Marshaller();
         cacheManager = new CacheManager(freshnessIntervalInSeconds);
-        this.serverPort = serverPort;
+        try {
+            // Configuring client socket
+            DatagramSocket socket = new DatagramSocket();
+            socket.setSoTimeout(3000);
+            network = new NetworkClient(socket, serverHostname, serverPort);
+        } catch (UnknownHostException | SocketException e) {
+            e.printStackTrace();
+            scanner.close();
+            System.exit(0);
+        }
 
         try {
-            // Create a UDP socket
-            clientSocket = new DatagramSocket();
-
-            // Get server's address
-            serverAddress = InetAddress.getByName(serverHostname);
-
             int chosen = 0;
-            while (chosen != 5) {
+            while (true) {
+                // UI
                 System.out.println("==================================");
                 System.out.println("1: Read file on (n) bytes.");
                 System.out.println("2: Write to file.");
                 System.out.println("3: List all files.");
-                System.out.println("4: Monitor File Updates");
-                System.out.println("5: Exit program.");
+                System.out.println("4: Monitor File Updates.");
+                System.out.println("5: Delete file.");
+                System.out.println("6: Insert file.");
+                System.out.println("7: Exit program.");
                 System.out.println("==================================");
                 System.out.print("Enter option: ");
 
+                // User input flow
                 chosen = Integer.parseInt(scanner.nextLine());
                 System.out.println("");
-                boolean monitoring = false;
-                Boolean readFromFile;
                 switch (chosen) {
                     case 1:
-                        readFromFile = readFile();
-                        if (readFromFile) {
-                            //only require receive() when getting data from server.
-                            //skip this when cache has required data.
-                            receive();
-                        }
+                    // Task 1
+                        readFile();
                         break;
                     case 2:
+                    // Task 2
                         writeToFile();
-                        receive();
                         break;
                     case 3:
+                    // Idempotent Task 3
                         listAllFiles();
-                        receive();
                         break;
                     case 4:
+                    // Task 4
                         monitorUpdates();
-                        monitoring = true;
-                        if (!monitoring) {
-                            receive();
-                            monitoring = false;
-                        }
                         break;
                     case 5:
+                    // Idempotent Task 5
+                        deleteFile();
+                        break;
+                    case 6:
+                    // Non-Idempotent Task 6
+                        insertFile();
+                        break;
+                    case 7:
                         System.out.println("Exiting program.");
                         System.exit(200);
                         break;
@@ -91,37 +101,35 @@ public class UDPClient {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            if (clientSocket != null) {
-                clientSocket.close();
-            }
             scanner.close();
         }
     }
 
-    public void receive() {
+    public boolean receive(DatagramPacket receivePacket) {
+        // No packet received from server
+        if (receivePacket == null) {
+            return false;
+        }
+
         try {
-            byte[] receiveData = new byte[1024];
-
-            // Receive response from server
-            DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-            clientSocket.receive(receivePacket);
-
-            String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
+            // Read received packet
+            String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
             int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
             switch (serverChosen) {
                 case 1:
                     // Print response from server for READ FILE
-                    String data = unmarshalledStrings[4];
+                    String data = unmarshalledStrings[5];
                     if (data.startsWith("404:")) {
                         data = data.substring(4);
                     } else {
-                        cacheManager.addToCache(unmarshalledStrings[1], Integer.parseInt(unmarshalledStrings[2]), data);
-                    }
+                        cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data);
+                    } 
                     System.out.println("Server Replied: " + data);
                     break;
                 case 2:
+                    // Display list of files
                     System.out.println("List of files: ");
-                    System.out.println(unmarshalledStrings[1]);
+                    System.out.println(unmarshalledStrings[2]);
                     break;
                 case 4:
                     // Print response from server for WRITE TO FILE
@@ -134,20 +142,28 @@ public class UDPClient {
             }
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
+        return true;
     }
 
-    public boolean readFile() {
-        try {
-            int offset;
-            int readBytes;
-            listAllFiles();
-            receive();
+    // Retrieve txt file on the server and read
+    public void readFile() {
+        int offset;
+        int readBytes;
+
+        // Display all files
+        if (listAllFiles()) {
+
+            // If successfully displayed
             System.out.printf("Enter file path: ");
             String filePathString = scanner.nextLine();
+            String offsetString;
+
+            // Offset input
             while (true) {
                 System.out.printf("Enter offset(bytes): ");
-                String offsetString = scanner.nextLine();
+                offsetString = scanner.nextLine();
                 try {
                     offset = Integer.parseInt(offsetString);
                     if (offset < 0) {
@@ -159,9 +175,12 @@ public class UDPClient {
                 }
                 break;
             }
+
+            // Number of bytes to read input
+            String byteString;
             while (true) {
                 System.out.printf("Enter number of bytes to read: ");
-                String byteString = scanner.nextLine();
+                byteString = scanner.nextLine();
                 try {
                     readBytes = Integer.parseInt(byteString);
                     if (readBytes < 0) {
@@ -176,36 +195,40 @@ public class UDPClient {
 
             String data = cacheManager.readFromCache(filePathString, offset, readBytes);
             if (data != null) {
-                //Data in cache
+                // Data in cache
                 System.out.println("Data found in cache: " + data);
-                return false;
             } else {
-                //Data not cached
-                byte[] sendData = marshaller.readFileMarshal(1, filePathString, offset, readBytes);
-
-                // Create packet to send to server
-                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
-
+                // Data not cached
                 // Send packet to server
-                clientSocket.send(sendPacket);
-                return true;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+                try {
+                network.send(1, filePathString, offsetString, byteString);
+
+                // Receive packet
+                receive(network.receive());
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } 
         }
-        return true;
     }
 
+    // Retrieve txt file on the server, write to file and send to server for updating
     public void writeToFile() {
-        try {
-            int offset;
-            listAllFiles();
-            receive();
+        int offset;
+
+        // Display all files
+        if (listAllFiles()) {
+
+            // If successfully displayed
             System.out.printf("Enter file path: ");
             String filePathString = scanner.nextLine();
+            String offsetString;
+            
+            // Offset input
             while (true) {
                 System.out.printf("Enter offset(bytes): ");
-                String offsetString = scanner.nextLine();
+                offsetString = scanner.nextLine();
                 try {
                     offset = Integer.parseInt(offsetString);
                     if (offset < 0) {
@@ -217,42 +240,44 @@ public class UDPClient {
                 }
                 break;
             }
+
+            // Data to insert into the file
             System.out.printf("Write: ");
             String writeString = scanner.nextLine();
-            byte[] sendData = marshaller.writeFileMarshal(2, filePathString, offset, writeString);
-            cacheManager.addToCache(filePathString, offset, writeString);
-            // Create packet to send to server
-            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
 
-            // Send packet to server
-            clientSocket.send(sendPacket);
-        } catch (Exception e) {
-            e.printStackTrace();
+            // Send packet
+            try {
+                network.send(2, filePathString, offsetString, writeString);
+                cacheManager.addToCache(filePathString, offset, writeString);
+                receive(network.receive());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
-    public void listAllFiles() {
+    // List all files in the system
+    public boolean listAllFiles() {
         try {
-            byte[] sendData = marshaller.marshal(3);
-
-            // Create packet to send to server
-            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
-
-            // Send packet to server
-            clientSocket.send(sendPacket);
+            network.send(3);
+            return receive(network.receive());
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return false;
     }
 
+    // Retrieve txt file on the server and read
     public void monitorUpdates() {
         try {
+            // Select file
             int duration = 0;
             System.out.printf("Select File to monitor: ");
             String filePath = scanner.nextLine();
+            String durationString;
             while (true) {
                 System.out.printf("Select Duration to monitor: ");
-                String durationString = scanner.nextLine();
+                durationString = scanner.nextLine();
                 try {
                     duration = Integer.parseInt(durationString);
                     if (duration < 0) {
@@ -264,31 +289,66 @@ public class UDPClient {
                 }
                 break;
             }
+
+
             System.out.println("Scanning for updates on " + filePath + " for " + duration + " seconds");
-            byte[] sendData = marshaller.monitorFileMarshal(4, filePath, duration);
-            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
-
-            clientSocket.send(sendPacket);
+            
+            // Send packet
+            network.send(4, filePath, durationString);
             while (true) {
-                byte[] receiveData = new byte[1024];
-                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-
-                clientSocket.receive(receivePacket);
-
-                String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
-                int message = Integer.parseInt(unmarshalledStrings[1]);
+                DatagramPacket receivePacket = network.receive();
+                if (receivePacket == null) {
+                    continue;
+                }
+                String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
+                int message = Integer.parseInt(unmarshalledStrings[2]);
                 if (message == 1) {
                     System.out.println("Ending Monitoring");
                     break;
                 } else {
-                    System.out.println(unmarshalledStrings[2]);
-                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[3]);
+                    System.out.println(unmarshalledStrings[3]);
+                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[4]);
                 }
             }
 
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public boolean deleteFile() {
+        try {
+            String delete;
+            if (listAllFiles()) {
+            System.out.printf("Enter file path: ");
+            String filePathString = scanner.nextLine();
+            System.out.printf("Are you sure? (y/n): ");
+            delete = scanner.nextLine();
+            if (delete.equalsIgnoreCase("y")) {
+                network.send(5, filePathString);
+                receive(network.receive());
+                return true;
+            }
+        } return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean insertFile() {
+        try {
+            System.out.printf("Enter filepath(local file) to insert: ");
+            String filePathString = scanner.nextLine();
+            System.out.printf("Enter filepath(remote file): ");
+            String insertPath = scanner.nextLine();
+            String content = new String(Files.readAllBytes(Paths.get(filePathString)));
+            network.send(6, insertPath, content);
+            receive(network.receive());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     public interface Callback extends Remote {
