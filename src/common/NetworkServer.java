@@ -6,6 +6,8 @@ import java.net.InetAddress;
 import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 import server.UDPServer.Callback;
 
@@ -15,15 +17,19 @@ public class NetworkServer {
     private Dictionary<String, byte[]> messageList = new Hashtable<>(); // List to hold all the message contents to send
     private DatagramSocket socket;
     private int packetIndex = 0;
+    private boolean isAtMostOnce = false;
+    private Dictionary<String, DatagramPacket> history = new Hashtable<String, DatagramPacket>();
 
-    public NetworkServer(DatagramSocket socket) {
+    public NetworkServer(DatagramSocket socket, boolean isAtMostOnce) {
         this.marshaller = new Marshaller();
         this.socket = socket;
+        this.isAtMostOnce = isAtMostOnce;
     }
 
     public void send(Callback client, int funcId, String... args) {
         int packetId = packetIndex;
         packetIndex++;
+
         InetAddress clientAddress = client.getAdd();
         int clientPort = client.getPort();
         byte[] sendData = marshaller.marshal(funcId, packetId, args);
@@ -39,13 +45,42 @@ public class NetworkServer {
     }
 
     public void reply(DatagramPacket receivedPacket, int funcId, String... args) {
+        // Received packet data
         int packetId = Integer.parseInt(marshaller.unmarshal(receivedPacket.getData())[1]);
         InetAddress clientAddress = receivedPacket.getAddress();
         int clientPort = receivedPacket.getPort();
-        byte[] sendData = marshaller.marshal(funcId, packetId, args);
-        // Create packet to send to server
-        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
 
+        // At-Most-Once history
+        String uniqueID = clientAddress.toString() + ":" + String.valueOf(clientPort) + ":" + String.valueOf(packetId);
+        DatagramPacket sendPacket = null;
+
+        if (isAtMostOnce) {
+            sendPacket = history.get(uniqueID);
+        }
+        if (sendPacket != null) {
+            System.err.println("Old packet resent");
+        } else {
+            byte[] sendData = marshaller.marshal(funcId, packetId, args);
+            sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
+            history.put(uniqueID, sendPacket);
+            System.err.println("New packet created");
+        }
+
+        // Simulate failure via delays or when packet drops in transit
+        int rnd = new Random().nextInt(3);
+        if (rnd == 2) {
+            System.err.println("Dropped in transit");
+            return;
+        } else if (rnd == 1) {
+            try {
+                TimeUnit.MILLISECONDS.sleep(4000);
+                System.err.println("Packet delayed");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        System.err.println("Packet sent\n");
         try {
             // Send packet to server
             socket.send(sendPacket);

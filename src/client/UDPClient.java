@@ -110,7 +110,6 @@ public class UDPClient {
         if (receivePacket == null) {
             return false;
         }
-
         try {
             // Read received packet
             String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
