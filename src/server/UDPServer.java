@@ -84,9 +84,9 @@ public class UDPServer {
                         String file = unmarshalledStrings[2];
                         serverHandler.reply(receivePacket, 4, "File successfully updated", file,
                                 String.valueOf(lastModifiedTime));
-
-                        List<Callback> clientList = new ArrayList<Callback>(registry.get("bin/resources/" + file));
-                        if (clientList != null || clientList.size() > 0) {
+                        List<Callback> clients = registry.get("bin/resources/" + file);
+                        if (clients != null) {
+                            List<Callback> clientList = new ArrayList<Callback>(clients);
                             byte[] sendData = marshaller.marshal(4, 0,
                                     fileContent, file,
                                     String.valueOf(lastModifiedTime));
