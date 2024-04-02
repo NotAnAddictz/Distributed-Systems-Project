@@ -40,7 +40,7 @@ public class NetworkServer {
     }
 
     public void reply(DatagramPacket receivedPacket, int funcId, String... args) {
-        int packetId = receivedPacket.getData()[1];
+        int packetId = Integer.parseInt(marshaller.unmarshal(receivedPacket.getData())[1]);
         InetAddress clientAddress = receivedPacket.getAddress();
         int clientPort = receivedPacket.getPort();
         byte[] sendData = marshaller.marshal(funcId, packetId, args);
