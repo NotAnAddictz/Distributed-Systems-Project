@@ -16,14 +16,17 @@ import java.util.List;
 import java.util.TimerTask;
 
 import common.Marshaller;
+import common.NetworkServer;
 
 public class UDPServer {
     public static void main(String[] args) {
         DatagramSocket serverSocket = null;
         Marshaller marshaller = new Marshaller();
+
         try {
             // Create a UDP socket
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
+            NetworkServer serverHandler = new NetworkServer(serverSocket);
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
 
             while (true) {
@@ -48,46 +51,29 @@ public class UDPServer {
                 switch (clientChosen) {
                     case 1:
                         fileContent = readFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(1, fileContent);
-                        TimeUnit.SECONDS.sleep(1);
-                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
-                                clientPort);
-                        serverSocket.send(sendPacket);
+                        serverHandler.reply(receivePacket, 1, fileContent);
                         break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(1, fileContent);
-                        TimeUnit.SECONDS.sleep(1);
-                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
-                                clientPort);
-                        serverSocket.send(sendPacket);
-                        List<Callback> clientList = registry.get("bin/resources/" + unmarshalledStrings[1]);
+                        serverHandler.reply(receivePacket, 2, fileContent);
+                        String file = unmarshalledStrings[1];
+                        List<Callback> clientList = registry.get("bin/resources/" + file);
                         if (clientList != null) {
-                            for (Callback callback : clientList) {
-                                String file = unmarshalledStrings[1];
-                                String message = String.format("Update! %s has been updated! \n New content: %s", file,
-                                        fileContent);
-                                returnedMessage = marshaller.marshal(3, "0", message);
-                                sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length,
-                                        callback.ClientAdd,
-                                        callback.ClientPort);
-                                serverSocket.send(sendPacket);
-                            }
+                            String message = String.format("Update! %s has been updated! \n New content: %s", file,
+                                    fileContent);
+
+                            serverHandler.newUpdate(message, file, clientList);
                         }
                         break;
                     case 3:
                         fileContent = listFiles(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(2, fileContent);
-                        TimeUnit.SECONDS.sleep(1);
-                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
-                                clientPort);
-                        serverSocket.send(sendPacket);
+                        serverHandler.reply(receivePacket, 3, fileContent);
                         break;
                     case 4:
                         String filePath = "bin/resources/" + unmarshalledStrings[1];
                         int duration = Integer.parseInt(unmarshalledStrings[2]); // Duration in seconds
                         Callback callback = new Callback(clientAddress, clientPort);
-                        new java.util.Timer().schedule(new removeMonitor(callback, registry, filePath, serverSocket),
+                        new java.util.Timer().schedule(new removeMonitor(callback, registry, filePath, serverHandler),
                                 duration * 1000);
                         // Adding into the registry
                         if (registry.get(filePath) == null) {
@@ -99,22 +85,17 @@ public class UDPServer {
                             currentArray.add(callback);
                             registry.put(filePath, currentArray);
                         }
+                        fileContent = "Acknowledged! Client added to monitoring mode";
+                        serverHandler.reply(receivePacket, 4, fileContent);
+
                         break;
                     case 5:
                         fileContent = deleteFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(1, fileContent);
-                        TimeUnit.SECONDS.sleep(1);
-                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
-                                clientPort);
-                        serverSocket.send(sendPacket);
+                        serverHandler.reply(receivePacket, 5, fileContent);
                         break;
                     case 6:
                         fileContent = insertFile(unmarshalledStrings);
-                        returnedMessage = marshaller.marshal(1, fileContent);
-                        TimeUnit.SECONDS.sleep(1);
-                        sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, clientAddress,
-                                clientPort);
-                        serverSocket.send(sendPacket);
+                        serverHandler.reply(receivePacket, 6, fileContent);
                     default:
                         System.out.println(
                                 "Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
@@ -252,8 +233,7 @@ public class UDPServer {
             }
         } catch (FileNotFoundException e) {
             content = e.getMessage();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
@@ -269,35 +249,36 @@ public class UDPServer {
             this.ClientAdd = clientAdd;
             this.ClientPort = clientPort;
         }
+
+        public InetAddress getAdd() {
+            return ClientAdd;
+        }
+
+        public int getPort() {
+            return ClientPort;
+        }
     }
 
-    static class removeMonitor extends TimerTask {
+    public static class removeMonitor extends TimerTask {
         private Callback callback;
         private Dictionary<String, List<Callback>> registry;
         private String filePath;
-        private DatagramSocket serverSocket;
+        private NetworkServer serverHandler;
 
         removeMonitor(Callback callback, Dictionary<String, List<Callback>> registry, String filePath,
-                DatagramSocket serverSocket) {
+                NetworkServer serverHandler) {
             this.callback = callback;
             this.registry = registry;
             this.filePath = filePath;
-            this.serverSocket = serverSocket;
+            this.serverHandler = serverHandler;
         }
 
         @Override
         public void run() {
 
-            Marshaller marshaller = new Marshaller();
             registry.get(filePath).remove(callback);
-            byte[] returnedMessage = marshaller.marshal(3, "1");
-            DatagramPacket sendPacket = new DatagramPacket(returnedMessage, returnedMessage.length, callback.ClientAdd,
-                    callback.ClientPort);
-            try {
-                serverSocket.send(sendPacket);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            String message = "1";
+            serverHandler.send(callback, 3, message);
             cancel();
         }
     }

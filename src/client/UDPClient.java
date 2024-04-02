@@ -60,27 +60,27 @@ public class UDPClient {
                 System.out.println("");
                 switch (chosen) {
                     case 1:
-                    // Task 1
+                        // Task 1
                         readFile();
                         break;
                     case 2:
-                    // Task 2
+                        // Task 2
                         writeToFile();
                         break;
                     case 3:
-                    // Idempotent Task 3
+                        // Idempotent Task 3
                         listAllFiles();
                         break;
                     case 4:
-                    // Task 4
+                        // Task 4
                         monitorUpdates();
                         break;
                     case 5:
-                    // Idempotent Task 5
+                        // Idempotent Task 5
                         deleteFile();
                         break;
                     case 6:
-                    // Non-Idempotent Task 6
+                        // Non-Idempotent Task 6
                         insertFile();
                         break;
                     case 7:
@@ -189,7 +189,8 @@ public class UDPClient {
         }
     }
 
-    // Retrieve txt file on the server, write to file and send to server for updating
+    // Retrieve txt file on the server, write to file and send to server for
+    // updating
     public void writeToFile() {
         int offset;
 
@@ -200,7 +201,7 @@ public class UDPClient {
             System.out.printf("Enter file path: ");
             String filePathString = scanner.nextLine();
             String offsetString;
-            
+
             // Offset input
             while (true) {
                 System.out.printf("Enter offset(bytes): ");
@@ -265,9 +266,8 @@ public class UDPClient {
                 break;
             }
 
-
             System.out.println("Scanning for updates on " + filePath + " for " + duration + " seconds");
-            
+
             // Send packet
             network.send(4, filePath, durationString);
             while (true) {
@@ -294,16 +294,17 @@ public class UDPClient {
         try {
             String delete;
             if (listAllFiles()) {
-            System.out.printf("Enter file path: ");
-            String filePathString = scanner.nextLine();
-            System.out.printf("Are you sure? (y/n): ");
-            delete = scanner.nextLine();
-            if (delete.equalsIgnoreCase("y")) {
-                network.send(5, filePathString);
-                receive(network.receive());
-                return true;
+                System.out.printf("Enter file path: ");
+                String filePathString = scanner.nextLine();
+                System.out.printf("Are you sure? (y/n): ");
+                delete = scanner.nextLine();
+                if (delete.equalsIgnoreCase("y")) {
+                    network.send(5, filePathString);
+                    receive(network.receive());
+                    return true;
+                }
             }
-        } return false;
+            return false;
         } catch (Exception e) {
             e.printStackTrace();
         }

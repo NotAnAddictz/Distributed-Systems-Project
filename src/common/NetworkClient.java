@@ -14,7 +14,7 @@ public class NetworkClient {
     private int serverPort;
     private int packetId;
     private DatagramSocket socket;
-    private DatagramPacket sendPacket; 
+    private DatagramPacket sendPacket;
 
     public NetworkClient(DatagramSocket socket, String serverName, int serverPort) throws UnknownHostException {
         this.socket = socket;
@@ -35,7 +35,7 @@ public class NetworkClient {
             socket.send(sendPacket);
         } catch (Exception e) {
             e.printStackTrace();
-        } 
+        }
     }
 
     // Client receives a packet from the server
@@ -50,10 +50,11 @@ public class NetworkClient {
                     // Receive response from server
                     DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                     socket.receive(receivePacket);
-                    
+
                     // Check if packet received is meant for packet sent
                     // Compare packetId
-                    if (marshaller.unmarshal(sendPacket.getData())[1].equals(marshaller.unmarshal(receivePacket.getData())[1])) {
+                    if (marshaller.unmarshal(sendPacket.getData())[1]
+                            .equals(marshaller.unmarshal(receivePacket.getData())[1])) {
                         return receivePacket;
                     }
                 }
@@ -74,5 +75,17 @@ public class NetworkClient {
             }
         }
         return null;
+    }
+
+    public void sendAck(int funcId, String... args) {
+        byte[] sendData = marshaller.marshal(funcId, packetId, args);
+        // Create packet to send to server
+        sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
+        try {
+            // Send packet to server
+            socket.send(sendPacket);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
