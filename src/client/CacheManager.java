@@ -13,7 +13,7 @@ public class CacheManager {
         this.freshnessIntervalSeconds = freshnessIntervalSeconds;
     }
 
-    public void addToCache(String filename, int offset, String data) {
+    public void addToCache(String filename, int offset, String data, Long lastModifiedTime) {
         char[] charData = data.toCharArray();
         CacheEntry cacheEntry = cache.getOrDefault(filename, new CacheEntry(new char[offset + charData.length], System.currentTimeMillis()));
 
@@ -22,25 +22,31 @@ public class CacheManager {
             char[] newData = new char[offset + charData.length];
             System.arraycopy(cacheEntry.getData(), 0, newData, 0, cacheEntry.getData().length);
             cacheEntry.setData(newData);
+            cacheEntry.setLastValidated(System.currentTimeMillis());
         }
 
         System.arraycopy(charData, 0, cacheEntry.getData(), offset, charData.length);
         cacheEntry.setLastValidated(System.currentTimeMillis());
         cache.put(filename, cacheEntry);
+        if (lastModifiedTime != null) {
+            //null when we addToCache before sending changes to server, receive() will update lastModified instead in this case.
+            setLastModified(filename, lastModifiedTime);
+        }
         System.out.println("UPDATED CACHE: " + Arrays.toString(cacheEntry.getData()));
     }
 
-    public void clearAndReplaceCache(String filename, String newData) {
+    public void clearAndReplaceCache(String filename, String newData, Long lastModifiedTime) {
         char[] charData = newData.toCharArray();
         CacheEntry cacheEntry = new CacheEntry(charData, System.currentTimeMillis());
         cache.put(filename, cacheEntry);
+        setLastModified(filename, lastModifiedTime);
         System.out.println("UPDATED CACHE: " + Arrays.toString(charData));
     }
 
     public String readFromCache(String filename, int offset, int numBytes) {
         CacheEntry cacheEntry = cache.get(filename);
-        if (cacheEntry == null || !isValidated(cacheEntry, System.currentTimeMillis())) {
-            // If cache entry doesn't exist or data is not fresh, return null
+        if (cacheEntry == null) {
+            // If cache entry doesn't exist, return null
             return null;
         }
 
@@ -84,11 +90,16 @@ public class CacheManager {
         return false;
     }
 
+    public void setValidated(String fileName) {
+        CacheEntry entry = cache.get(fileName);
+        entry.setLastValidated(System.currentTimeMillis());
+    }
     // Method to check if a cache entry is valid based on freshness interval
-    private boolean isValidated(CacheEntry entry, long currentTime) {
+    public boolean isValidated(String fileName) {
+        CacheEntry entry = cache.get(fileName);
         long tc = entry.getLastValidated();
         long freshnessInterval = freshnessIntervalSeconds*1000;
-        if (currentTime - tc < freshnessInterval) {
+        if (System.currentTimeMillis() - tc < freshnessInterval) {
             return true;
         } else {
             System.out.println("Cache exceeds freshness interval");
@@ -96,9 +107,30 @@ public class CacheManager {
         }
     }
 
+    public void setLastModified(String fileName, Long lastModifiedTime) {
+        CacheEntry entry = cache.get(fileName);
+        if (lastModifiedTime != null) {
+            entry.setLastModified(lastModifiedTime);
+        }
+    }
+
+    public boolean isModified(String fileName, Long serverLastModifiedTime) {
+        CacheEntry entry = cache.get(fileName);
+        if (entry.getLastModified() < serverLastModifiedTime) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public boolean fileExistInCache(String fileName) {
+        return cache.containsKey(fileName);
+    }
+
     private static class CacheEntry {
         private char[] data;
         private long lastValidated;
+        private long lastModified;
 
         public CacheEntry(char[] data, long lastValidated) {
             this.data = data;
@@ -119,6 +151,14 @@ public class CacheManager {
 
         public void setLastValidated(long lastValidated) {
             this.lastValidated = lastValidated;
+        }
+
+        public long getLastModified() {
+            return lastModified;
+        }
+    
+        public void setLastModified(long lastModified) {
+            this.lastModified = lastModified;
         }
     }
 }

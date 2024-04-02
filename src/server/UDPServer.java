@@ -9,12 +9,16 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Dictionary;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 import java.util.TimerTask;
 
+import common.Helper;
 import common.Marshaller;
 import common.NetworkServer;
 
@@ -28,8 +32,20 @@ public class UDPServer {
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
             NetworkServer serverHandler = new NetworkServer(serverSocket);
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
+            
+            //hashmap for storing lastModified of each file
+            Map<String, Long> lastModifiedMap = new HashMap<>();
+            
+            //manually populate for existing files
+            Long timenow = System.currentTimeMillis();
+            lastModifiedMap.put("file1.txt", timenow);
+            lastModifiedMap.put("file2.txt", timenow);
+            lastModifiedMap.put("file3.txt", timenow);
+            lastModifiedMap.put("testfile.txt", timenow);
+            
 
             while (true) {
+                Helper.printFileLastModifiedTime(lastModifiedMap);
                 byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 byte[] returnedMessage;
@@ -51,12 +67,25 @@ public class UDPServer {
                 switch (clientChosen) {
                     case 1:
                         fileContent = readFile(unmarshalledStrings);
-                        serverHandler.reply(receivePacket, 1, fileContent);
+                        System.out.println("CLIENT READ: SENDING THE FOLLOWING - " + Arrays.toString(unmarshalledStrings) + " | fileContent and LastModifiedTime: " + String.valueOf(lastModifiedMap.get(unmarshalledStrings[1])));
+                        serverHandler.reply(receivePacket, 1, 
+                        unmarshalledStrings[2], 
+                        unmarshalledStrings[3], 
+                        unmarshalledStrings[4] , 
+                        fileContent, 
+                        String.valueOf(lastModifiedMap.get(unmarshalledStrings[2])));
+                        // funcId, packetid, filename, offset, readBytes, filecontent, time
                         break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
-                        serverHandler.reply(receivePacket, 2, fileContent);
-                        String file = unmarshalledStrings[1];
+                        
+                        //to ensure lastModifiedTime is the same, server will update and send the time back to client
+                        Long lastModifiedTime = System.currentTimeMillis();
+                        lastModifiedMap.put(unmarshalledStrings[2], lastModifiedTime);
+
+                        serverHandler.reply(receivePacket, 4, "File successfully updated", unmarshalledStrings[2] , String.valueOf(lastModifiedTime));
+                        
+                        String file = unmarshalledStrings[2];
                         List<Callback> clientList = registry.get("bin/resources/" + file);
                         if (clientList != null) {
                             String message = String.format("Update! %s has been updated! \n New content: %s", file,
@@ -67,7 +96,7 @@ public class UDPServer {
                         break;
                     case 3:
                         fileContent = listFiles(unmarshalledStrings);
-                        serverHandler.reply(receivePacket, 3, fileContent);
+                        serverHandler.reply(receivePacket, 2, fileContent);
                         break;
                     case 4:
                         String filePath = "bin/resources/" + unmarshalledStrings[1];
@@ -91,11 +120,23 @@ public class UDPServer {
                         break;
                     case 5:
                         fileContent = deleteFile(unmarshalledStrings);
-                        serverHandler.reply(receivePacket, 5, fileContent);
+                        serverHandler.reply(receivePacket, 1, fileContent);
                         break;
                     case 6:
                         fileContent = insertFile(unmarshalledStrings);
-                        serverHandler.reply(receivePacket, 6, fileContent);
+                        serverHandler.reply(receivePacket, 1, fileContent);
+                    case 10:
+                        //for client to request modified time of file
+                        System.err.println(Arrays.toString(unmarshalledStrings));
+                        Long lastModified = lastModifiedMap.get(unmarshalledStrings[2]);
+                        if (lastModified != null){
+                            serverHandler.reply(receivePacket, 1,  String.valueOf(lastModified));
+                        } else {
+                            serverHandler.reply(receivePacket, 1, "Missing file in server");
+                        }
+                        break;
+
+
                     default:
                         System.out.println(
                                 "Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
@@ -114,9 +155,9 @@ public class UDPServer {
     }
 
     public static String readFile(String[] unmarshalledStrings) {
-        String filePath = "bin/resources/" + unmarshalledStrings[1];
-        int offset = Integer.valueOf(unmarshalledStrings[2]);
-        int noOfBytes = Integer.valueOf(unmarshalledStrings[3].trim()); // Number of bytes to read
+        String filePath = "bin/resources/" + unmarshalledStrings[2];
+        int offset = Integer.valueOf(unmarshalledStrings[3]);
+        int noOfBytes = Integer.valueOf(unmarshalledStrings[4].trim()); // Number of bytes to read
         String content = "No content in file";
 
         try (
@@ -142,11 +183,10 @@ public class UDPServer {
     }
 
     public static String writeToFile(String[] unmarshalledStrings) {
-        String filePath = "bin/resources/" + unmarshalledStrings[1];
-        int offset = Integer.valueOf(unmarshalledStrings[2]);
-        String write = unmarshalledStrings[3].trim();
+        String filePath = "bin/resources/" + unmarshalledStrings[2];
+        int offset = Integer.valueOf(unmarshalledStrings[3]);
+        String write = unmarshalledStrings[4].trim();
         String content = "No content in file";
-
         try (
                 // Read file content
                 RandomAccessFile file = new RandomAccessFile(filePath, "rw")) {

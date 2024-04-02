@@ -8,8 +8,10 @@ import java.nio.file.Paths;
 import java.rmi.MarshalException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
+import java.util.Arrays;
 import java.util.Scanner;
 
+import common.Helper;
 import common.Marshaller;
 import common.NetworkClient;
 
@@ -26,7 +28,6 @@ public class UDPClient {
         String serverHostname = args[0];
         int serverPort = Integer.parseInt(args[1]);
         long freshnessIntervalInSeconds = Long.parseLong(args[2]);
-        
         UDPClient udpClient = new UDPClient();
         udpClient.startProgram(serverHostname, serverPort, freshnessIntervalInSeconds);
     }
@@ -34,6 +35,7 @@ public class UDPClient {
     public void startProgram(String serverHostname, int serverPort, long freshnessIntervalInSeconds) {
         System.out.println(String.format("Starting client {Server Name: %s | Port: %s | FreshnessInterval: %s}", serverHostname, serverPort, freshnessIntervalInSeconds));
         scanner = new Scanner(System.in);
+        marshaller = new Marshaller();
         cacheManager = new CacheManager(freshnessIntervalInSeconds);
         try {
             // Configuring client socket
@@ -122,8 +124,9 @@ public class UDPClient {
                     if (data.startsWith("404:")) {
                         data = data.substring(4);
                     } else {
-                        cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data);
-                    } 
+                        System.out.println("CLIENT RECEIVED: " + Arrays.toString(unmarshalledStrings));
+                        cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data, Long.parseLong(unmarshalledStrings[6]));
+                    }
                     System.out.println("Server Replied: " + data);
                     break;
                 case 2:
@@ -133,7 +136,8 @@ public class UDPClient {
                     break;
                 case 4:
                     // Print response from server for WRITE TO FILE
-                    System.out.println("Server Replied: " + unmarshalledStrings[1]);
+                    System.out.println("Server Replied: " + unmarshalledStrings[2] + " | Updated " + unmarshalledStrings[3] + " at " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[4])));
+                    cacheManager.setLastModified(unmarshalledStrings[3], Long.parseLong(unmarshalledStrings[4]));
                     break;
                 default:
                     System.out
@@ -148,7 +152,7 @@ public class UDPClient {
     }
 
     // Retrieve txt file on the server and read
-    public void readFile() {
+    public boolean readFile() {
         int offset;
         int readBytes;
 
@@ -192,25 +196,48 @@ public class UDPClient {
                 }
                 break;
             }
-
-            String data = cacheManager.readFromCache(filePathString, offset, readBytes);
-            if (data != null) {
-                // Data in cache
-                System.out.println("Data found in cache: " + data);
-            } else {
-                // Data not cached
-                // Send packet to server
-                try {
+            if (!cacheManager.fileExistInCache(filePathString) || cacheManager.readFromCache(filePathString, offset, readBytes) == null) {
+                // File does not exist in cache, retrieve from server
+                // lastModifiedTime is updated in receive()
                 network.send(1, filePathString, offsetString, byteString);
-
-                // Receive packet
+                System.out.println("FILE NOT IN CACHE");
                 receive(network.receive());
+                return true;
+            }
+            if (!cacheManager.isValidated(filePathString)) {
+                // File exists in cache but not validated
+                //get lastModifiedTime from server
+                //check for lastModified of file from server
+                network.send(10, filePathString);
+                
+                byte[] receiveData = new byte[1024];
+                // Receive response from server
+                DatagramPacket receivePacket = network.receive();
+
+                String[] unmarshalledStrings = marshaller.unmarshal(receivePacket.getData());
+                Long lastModifiedTime = Long.parseLong(unmarshalledStrings[2]);
+                System.out.println("FILE IS NOT FRESH");
+
+                if (cacheManager.isModified(filePathString, lastModifiedTime)) {
+                    // File is outdated, get file from server
+                    // lastModifiedTime is updated in receive()
+                    System.out.println("FILE IS NOT UPDATED");
+                    network.send(1, filePathString, offsetString, byteString);
+                    receive(network.receive());
+                    return true;
+                } else {
+                    cacheManager.setValidated(filePathString);
                 }
-                catch (Exception e) {
-                    e.printStackTrace();
-                }
-            } 
+            }
+            
+            // File exists in cache and is validated or not modified
+            // Read from cache
+            System.out.println("FILE IS UPDATED IN CACHE");
+            String data = cacheManager.readFromCache(filePathString, offset, readBytes);
+            System.out.println("Data found in cache: " + data);
+            return false;
         }
+        return false;
     }
 
     // Retrieve txt file on the server, write to file and send to server for
@@ -249,7 +276,7 @@ public class UDPClient {
             // Send packet
             try {
                 network.send(2, filePathString, offsetString, writeString);
-                cacheManager.addToCache(filePathString, offset, writeString);
+                cacheManager.addToCache(filePathString, offset, writeString, null);
                 receive(network.receive());
             } catch (Exception e) {
                 e.printStackTrace();
@@ -306,8 +333,9 @@ public class UDPClient {
                     System.out.println("Ending Monitoring");
                     break;
                 } else {
+                    System.out.println("Monitoring received with funcId: " + unmarshalledStrings[1] + " | lastModifiedTime: " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[5])));
                     System.out.println(unmarshalledStrings[3]);
-                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[4]);
+                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[4], Long.parseLong(unmarshalledStrings[5]));
                 }
             }
 
