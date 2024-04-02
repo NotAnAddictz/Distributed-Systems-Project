@@ -42,4 +42,18 @@ public class Helper {
 
         return formattedTime;
     }
+
+    public static String extractFileName(String path) {
+        // Extract the filename from the path
+        String[] parts = path.split("/");
+        String fileNameWithExtension = parts[parts.length - 1];
+
+        // Remove the file extension
+        int dotIndex = fileNameWithExtension.lastIndexOf('.');
+        if (dotIndex != -1) {
+            return fileNameWithExtension.substring(0, dotIndex);
+        } else {
+            return fileNameWithExtension; // If there's no extension, return the filename as it is
+        }
+    }
 }

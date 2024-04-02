@@ -21,29 +21,47 @@ import common.Marshaller;
 import common.NetworkServer;
 
 public class UDPServer {
-    public static void main(String[] args) {
+    
+    // hashmap for storing lastModified of each file
+    FileManager fileManager;
+    Marshaller marshaller;
+    
+    public static void main(String[] args){
         boolean isAtMostOnce = args[1].equals("1");
-        DatagramSocket serverSocket = null;
-        Marshaller marshaller = new Marshaller();
-
+        UDPServer udpServer = new UDPServer();
+        DatagramSocket serverSocket = null; 
         try {
+            serverSocket = new DatagramSocket(Integer.parseInt(args[0]));
+            udpServer.startServer(isAtMostOnce, serverSocket);
+        }  catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (serverSocket != null) {
+                serverSocket.close();
+            }
+        }
+    }
+
+    public void startServer(boolean isAtMostOnce, DatagramSocket serverSocket) {
+        fileManager = new FileManager();
+        marshaller = new Marshaller();
+        
+        try {
+            fileManager = new FileManager();
             // Create a UDP socket
-            serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
             NetworkServer serverHandler = new NetworkServer(serverSocket, isAtMostOnce);
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
 
-            // hashmap for storing lastModified of each file
-            Map<String, Long> lastModifiedMap = new HashMap<>();
 
             // manually populate for existing files
             Long timenow = System.currentTimeMillis();
-            lastModifiedMap.put("file1.txt", timenow);
-            lastModifiedMap.put("file2.txt", timenow);
-            lastModifiedMap.put("file3.txt", timenow);
-            lastModifiedMap.put("testfile.txt", timenow);
+            fileManager.addFile("file1.txt", timenow);
+            fileManager.addFile("file2.txt", timenow);
+            fileManager.addFile("file3.txt", timenow);
+            fileManager.addFile("testfile.txt", timenow);
 
             while (true) {
-                Helper.printFileLastModifiedTime(lastModifiedMap);
+                fileManager.printAllFiles();
                 byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 // Receive packet from client
@@ -65,27 +83,27 @@ public class UDPServer {
                         fileContent = readFile(unmarshalledStrings);
                         System.out.println("CLIENT READ: SENDING THE FOLLOWING - "
                                 + Arrays.toString(unmarshalledStrings) + " | fileContent and LastModifiedTime: "
-                                + String.valueOf(lastModifiedMap.get(unmarshalledStrings[1])));
+                                + String.valueOf(fileManager.getLastModifiedTime(unmarshalledStrings[2])));
                         serverHandler.reply(receivePacket, 1,
                                 unmarshalledStrings[2],
                                 unmarshalledStrings[3],
                                 unmarshalledStrings[4],
                                 fileContent,
-                                String.valueOf(lastModifiedMap.get(unmarshalledStrings[2])));
-                        // funcId, packetid, filename, offset, readBytes, filecontent, t break;
+                                String.valueOf(fileManager.getLastModifiedTime(unmarshalledStrings[2])));
+                        // funcId, packetid, filename, offset, readBytes, filecontent, t 
+                        break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
 
                         // to ensure lastModifiedTime is the same, server will update and send the time
                         // back to client
                         Long lastModifiedTime = System.currentTimeMillis();
-                        lastModifiedMap.put(unmarshalledStrings[2], lastModifiedTime);
+                        fileManager.updateLastModifiedTime(unmarshalledStrings[2], lastModifiedTime);
 
-                        serverHandler.reply(receivePacket, 4, "File successfully updated", unmarshalledStrings[2] , String.valueOf(lastModifiedTime), unmarshalledStrings[4]);
                         
                         String file = unmarshalledStrings[2];
-                        serverHandler.reply(receivePacket, 4, "File successfully updated", file,
-                                String.valueOf(lastModifiedTime));
+                        serverHandler.reply(receivePacket, 4, "File successfully updated", file , String.valueOf(lastModifiedTime), unmarshalledStrings[4]);
+                        
                         List<Callback> clients = registry.get("bin/resources/" + file);
                         if (clients != null) {
                             List<Callback> clientList = new ArrayList<Callback>(clients);
@@ -127,11 +145,12 @@ public class UDPServer {
                         serverHandler.reply(receivePacket, 1, fileContent);
                         break;
                     case 6:
+                        Long timeNow = System.currentTimeMillis();
                         //client insert file
-                        fileContent = insertFile(unmarshalledStrings);
+                        fileContent = insertFile(unmarshalledStrings, timeNow);
 
                         //server should return lastModifiedTime, client cache should be empty. need to test if that causes issues.
-                        serverHandler.reply(receivePacket, 1, fileContent);
+                        serverHandler.reply(receivePacket, 6, fileContent, unmarshalledStrings[3] , String.valueOf(timeNow));
                         break;
                     // General Acknowledgement
                     case 7:
@@ -142,7 +161,7 @@ public class UDPServer {
                     case 10:
                         // for client to request modified time of file
                         System.err.println(Arrays.toString(unmarshalledStrings));
-                        Long lastModified = lastModifiedMap.get(unmarshalledStrings[2]);
+                        Long lastModified = fileManager.getLastModifiedTime(unmarshalledStrings[2]);
                         if (lastModified != null) {
                             serverHandler.reply(receivePacket, 1, String.valueOf(lastModified));
                         } else {
@@ -156,9 +175,7 @@ public class UDPServer {
                         break;
                 }
             }
-        } catch (
-
-        Exception e) {
+        }   catch (Exception e) {
             e.printStackTrace();
         } finally {
             if (serverSocket != null) {
@@ -200,6 +217,7 @@ public class UDPServer {
         int offset = Integer.valueOf(unmarshalledStrings[3]);
         String write = unmarshalledStrings[4].trim();
         String content = "No content in file";
+        System.out.println("WRITING " + write + " TO " + unmarshalledStrings[2]);
         try (
                 // Read file content
                 RandomAccessFile file = new RandomAccessFile(filePath, "rw")) {
@@ -258,12 +276,13 @@ public class UDPServer {
         return content;
     }
 
-    public static String insertFile(String[] unmarshalledStrings) {
-        String filePath = "bin/resources/" + unmarshalledStrings[1];
-        String fileContent = unmarshalledStrings[2];
-        String content = fileContent;
+    public String insertFile(String[] unmarshalledStrings, Long lastModifiedTime) {
+        String filePath = "bin/resources/" + unmarshalledStrings[2];
+        String fileContent = unmarshalledStrings[3];
+        String content = null;
         File file;
         RandomAccessFile raf;
+        String fileName = null;
 
         try {
             while (true) {
@@ -273,7 +292,7 @@ public class UDPServer {
                     raf.seek(0);
                     raf.write(fileContent.getBytes());
                     raf.close();
-                    content = "" + filePath + " has been created in the file system";
+                    fileName = unmarshalledStrings[2];
                     break;
                 } else {
                     String fileType = "";
@@ -283,12 +302,18 @@ public class UDPServer {
                         filePath = filePath.substring(0, dotIndex);
                     }
                     filePath = filePath + "_copy." + fileType;
+                    String fileNameWithoutExtension = Helper.extractFileName(unmarshalledStrings[2]);
+                    fileName = fileNameWithoutExtension + "_copy." + fileType;
                 }
             }
         } catch (FileNotFoundException e) {
-            content = e.getMessage();
+            System.out.println(e.getMessage());
         } catch (IOException e) {
             e.printStackTrace();
+        }
+        if (fileName != null) {
+            fileManager.addFile(fileName, lastModifiedTime);
+            content = fileName;
         }
         return content;
     }

@@ -119,6 +119,7 @@ public class UDPClient {
         try {
             // Read received packet
             String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
+            //System.out.println("RECEIVE(): " + Arrays.toString(unmarshalledStrings));
             int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
             switch (serverChosen) {
                 case 1:
@@ -127,7 +128,7 @@ public class UDPClient {
                     if (data.startsWith("404:")) {
                         data = data.substring(4);
                     } else {
-                        System.out.println("CLIENT RECEIVED: " + Arrays.toString(unmarshalledStrings) + "CONVERTED TIME: " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[-1])));
+                        System.out.println("CLIENT RECEIVED: " + Arrays.toString(unmarshalledStrings) + "CONVERTED TIME: " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[6])));
                         cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data);
                         Boolean cacheContainsNewData = cacheManager.stringExists(unmarshalledStrings[2], data);
                         //should only setLastModified if file content is up to date with server. e.g. WRITTEN content above is the only content we are sure is up to date.
@@ -159,6 +160,18 @@ public class UDPClient {
                         System.out.println("Server Replied: " + unmarshalledStrings[2] + " | Updated " + unmarshalledStrings[3]);
                     }
                     break;
+                case 5:
+                    //delete
+                    break;
+                case 6:
+                    //insert
+                    System.out.println("IN CASE 6: " + Arrays.toString(unmarshalledStrings));
+                    System.out.println("Server Replied: " + unmarshalledStrings[2] + " added to server files");
+
+                    //replace existing file or add on to it?
+                    cacheManager.clearAndReplaceCache(unmarshalledStrings[2], unmarshalledStrings[3], Long.parseLong(unmarshalledStrings[4]));
+                    break;
+                    
                 default:
                     System.out
                             .println("Received an invalid funcID from " + receivePacket.getSocketAddress().toString());
@@ -221,7 +234,7 @@ public class UDPClient {
                 // File does not exist in cache, retrieve from server
                 // lastModifiedTime is updated in receive()
                 network.send(1, filePathString, offsetString, byteString);
-                System.out.println("FILE NOT IN CACHE");
+                System.out.println("FILE OR DATA NOT IN CACHE");
                 receive(network.receive());
                 return true;
             }
