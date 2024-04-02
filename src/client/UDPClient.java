@@ -51,6 +51,7 @@ public class UDPClient {
         int chosen = 0;
         while (true) {
             try {
+                cacheManager.printCacheContents();
                 // UI
                 System.out.println("==================================");
                 System.out.println("1: Read file on (n) bytes.");
@@ -126,9 +127,14 @@ public class UDPClient {
                     if (data.startsWith("404:")) {
                         data = data.substring(4);
                     } else {
-                        System.out.println("CLIENT RECEIVED: " + Arrays.toString(unmarshalledStrings));
-                        cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data,
-                                Long.parseLong(unmarshalledStrings[6]));
+                        System.out.println("CLIENT RECEIVED: " + Arrays.toString(unmarshalledStrings) + "CONVERTED TIME: " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[-1])));
+                        cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data);
+                        Boolean cacheContainsNewData = cacheManager.stringExists(unmarshalledStrings[2], data);
+                        //should only setLastModified if file content is up to date with server. e.g. WRITTEN content above is the only content we are sure is up to date.
+                        if (cacheContainsNewData) {
+                            //above will be true if cache is entirely overwritten by client write.
+                            cacheManager.setLastModified(unmarshalledStrings[2], Long.parseLong(unmarshalledStrings[6]));
+                        }
                     }
                     System.out.println("Server Replied: " + data);
                     break;
@@ -143,10 +149,15 @@ public class UDPClient {
                     break;
                 case 4:
                     // Print response from server for WRITE TO FILE
-                    System.out.println(
-                            "Server Replied: " + unmarshalledStrings[2] + " | Updated " + unmarshalledStrings[3]
-                                    + " at " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[4])));
-                    cacheManager.setLastModified(unmarshalledStrings[3], Long.parseLong(unmarshalledStrings[4]));
+                    Boolean cacheContainsNewData = cacheManager.stringExists(unmarshalledStrings[3], unmarshalledStrings[5]);
+                    //should only setLastModified if file content is up to date with server. e.g. WRITTEN content above is the only content we are sure is up to date.
+                    if (cacheContainsNewData) {
+                        //above will be true if cache is entirely overwritten by client write.
+                        System.out.println("Server Replied: " + unmarshalledStrings[2] + " | Updated " + unmarshalledStrings[3] + " and Updated LastModifiedTime to " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[4])));
+                        cacheManager.setLastModified(unmarshalledStrings[3], Long.parseLong(unmarshalledStrings[4]));
+                    } else {
+                        System.out.println("Server Replied: " + unmarshalledStrings[2] + " | Updated " + unmarshalledStrings[3]);
+                    }
                     break;
                 default:
                     System.out
@@ -284,7 +295,7 @@ public class UDPClient {
             // Send packet
             try {
                 network.send(2, filePathString, offsetString, writeString);
-                cacheManager.addToCache(filePathString, offset, writeString, null);
+                cacheManager.addToCache(filePathString, offset, writeString);
                 receive(network.receive());
             } catch (Exception e) {
                 e.printStackTrace();

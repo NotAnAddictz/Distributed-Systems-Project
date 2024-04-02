@@ -80,6 +80,9 @@ public class UDPServer {
                         // back to client
                         Long lastModifiedTime = System.currentTimeMillis();
                         lastModifiedMap.put(unmarshalledStrings[2], lastModifiedTime);
+
+                        serverHandler.reply(receivePacket, 4, "File successfully updated", unmarshalledStrings[2] , String.valueOf(lastModifiedTime), unmarshalledStrings[4]);
+                        
                         String file = unmarshalledStrings[2];
                         serverHandler.reply(receivePacket, 4, "File successfully updated", file,
                                 String.valueOf(lastModifiedTime));
@@ -117,11 +120,17 @@ public class UDPServer {
 
                         break;
                     case 5:
+                        //client delete file
                         fileContent = deleteFile(unmarshalledStrings);
+
+                        //client should only clear cache for file if server replies.
                         serverHandler.reply(receivePacket, 1, fileContent);
                         break;
                     case 6:
+                        //client insert file
                         fileContent = insertFile(unmarshalledStrings);
+
+                        //server should return lastModifiedTime, client cache should be empty. need to test if that causes issues.
                         serverHandler.reply(receivePacket, 1, fileContent);
                         break;
                     // General Acknowledgement

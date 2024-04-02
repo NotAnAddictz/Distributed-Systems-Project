@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import common.Helper;
+
 public class CacheManager {
     private Map<String, CacheEntry> cache;
     private long freshnessIntervalSeconds;
@@ -13,7 +15,7 @@ public class CacheManager {
         this.freshnessIntervalSeconds = freshnessIntervalSeconds;
     }
 
-    public void addToCache(String filename, int offset, String data, Long lastModifiedTime) {
+    public void addToCache(String filename, int offset, String data) {
         char[] charData = data.toCharArray();
         CacheEntry cacheEntry = cache.getOrDefault(filename, new CacheEntry(new char[offset + charData.length], System.currentTimeMillis()));
 
@@ -28,10 +30,10 @@ public class CacheManager {
         System.arraycopy(charData, 0, cacheEntry.getData(), offset, charData.length);
         cacheEntry.setLastValidated(System.currentTimeMillis());
         cache.put(filename, cacheEntry);
-        if (lastModifiedTime != null) {
-            //null when we addToCache before sending changes to server, receive() will update lastModified instead in this case.
-            setLastModified(filename, lastModifiedTime);
-        }
+        // if (lastModifiedTime != null) {
+        //     //null when we addToCache before sending changes to server, receive() will update lastModified instead in this case.
+        //     setLastModified(filename, lastModifiedTime);
+        // }
         System.out.println("UPDATED CACHE: " + Arrays.toString(cacheEntry.getData()));
     }
 
@@ -125,6 +127,34 @@ public class CacheManager {
 
     public boolean fileExistInCache(String fileName) {
         return cache.containsKey(fileName);
+    }
+
+    //function checks
+    public boolean stringExists(String fileName, String str) {
+        String arrayString = new String(cache.get(fileName).getData());
+        int index = arrayString.indexOf(str);
+        if (index != -1) {
+            // Ensure there are no other characters before or after the matched substring
+            if ((index == 0 || arrayString.charAt(index - 1) == ',') &&
+                (index + str.length() == arrayString.length() || arrayString.charAt(index + str.length()) == ',')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void printCacheContents() {
+        System.out.println();
+        System.out.println("-------------------CACHE CONTENTS-------------------");
+        for (Map.Entry<String, CacheEntry> entry : cache.entrySet()) {
+            String filename = entry.getKey();
+            CacheEntry cacheEntry = entry.getValue();
+            char[] data = cacheEntry.getData();
+            long lastModified = cacheEntry.getLastModified();
+            System.out.println("Filename: " + filename + " | " + "Data: " + Arrays.toString(data) + " | " + "Last Modified Time: " + Helper.convertLastModifiedTime(lastModified));
+        }
+        System.out.println("----------------------------------------------------");
+        System.out.println();
     }
 
     private static class CacheEntry {
