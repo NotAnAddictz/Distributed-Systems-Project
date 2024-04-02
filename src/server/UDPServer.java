@@ -24,13 +24,14 @@ import common.NetworkServer;
 
 public class UDPServer {
     public static void main(String[] args) {
+        boolean isAtMostOnce = args[1].equals("1");
         DatagramSocket serverSocket = null;
         Marshaller marshaller = new Marshaller();
 
         try {
             // Create a UDP socket
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
-            NetworkServer serverHandler = new NetworkServer(serverSocket);
+            NetworkServer serverHandler = new NetworkServer(serverSocket, isAtMostOnce);
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
             
             //hashmap for storing lastModified of each file
