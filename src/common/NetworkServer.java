@@ -6,14 +6,13 @@ import java.net.InetAddress;
 import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.List;
-import java.util.concurrent.Executors;
 
 import server.UDPServer.Callback;
 
 public class NetworkServer {
     private Marshaller marshaller;
     private Dictionary<String, List<Callback>> sendList = new Hashtable<>(); // List to accept out
-    private Dictionary<String, String> messageList = new Hashtable<>(); // List to hold all the message contents to send
+    private Dictionary<String, byte[]> messageList = new Hashtable<>(); // List to hold all the message contents to send
     private DatagramSocket socket;
     private int packetIndex = 0;
 
@@ -62,12 +61,11 @@ public class NetworkServer {
             if (clientList == null || clientList.isEmpty()) {
                 break;
             }
-            String message = messageList.get(fileName);
+            byte[] sendData = messageList.get(fileName);
             for (Callback calls : clientList) {
                 InetAddress address = calls.getAdd();
                 int port = calls.getPort();
-                byte[] marshalledMessage = marshaller.marshal(3, 0, message);
-                DatagramPacket sendPacket = new DatagramPacket(marshalledMessage, marshalledMessage.length, address,
+                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, address,
                         port);
                 try {
                     socket.send(sendPacket);
@@ -77,7 +75,7 @@ public class NetworkServer {
             }
             // Waiting for 3 seconds, before retrying
             try {
-                Thread.sleep(3000);
+                Thread.sleep(5000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -86,21 +84,26 @@ public class NetworkServer {
     }
 
     // Adds an update to the system
-    public void newUpdate(String message, String fileName, List<Callback> clients) {
+    public void newUpdate(byte[] sendData, String fileName, List<Callback> clients) {
         // Add / replace the message with the new message
-        messageList.put(fileName, message);
+        messageList.put(fileName, sendData);
         sendList.put(fileName, clients);
         // Creates a new thread to execute sends and handle retries
-        Executors.newSingleThreadExecutor().execute(new Runnable() {
+        new Thread() {
             public void run() {
                 sendMass(fileName, 0);
             }
-        });
+        }.start();
     }
 
     public void removeClient(String fileName, Callback client) {
         List<Callback> clientList = sendList.get(fileName);
-        clientList.remove(client);
+        for (int i = 0; i < clientList.size(); i++) {
+            Callback testClient = clientList.get(i);
+            if (client.getAdd().equals(testClient.getAdd()) && testClient.getPort() == client.getPort()) {
+                clientList.remove(testClient);
+            }
+        }
         sendList.put(fileName, clientList);
     }
 

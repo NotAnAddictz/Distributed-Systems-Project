@@ -6,7 +6,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 
 public class NetworkClient {
     private Marshaller marshaller;
@@ -78,7 +77,7 @@ public class NetworkClient {
     }
 
     public void sendAck(int funcId, String... args) {
-        byte[] sendData = marshaller.marshal(funcId, packetId, args);
+        byte[] sendData = marshaller.marshal(funcId, 0, args);
         // Create packet to send to server
         sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
         try {
@@ -87,5 +86,17 @@ public class NetworkClient {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public DatagramPacket waitReceive(int timeout) {
+        byte[] receiveData = new byte[1024];
+        DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+        try {
+            socket.setSoTimeout(timeout);
+            socket.receive(receivePacket);
+        } catch (Exception e) {
+            return null;
+        }
+        return receivePacket;
     }
 }

@@ -7,12 +7,10 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Dictionary;
 import java.util.HashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
@@ -32,24 +30,21 @@ public class UDPServer {
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
             NetworkServer serverHandler = new NetworkServer(serverSocket);
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
-            
-            //hashmap for storing lastModified of each file
+
+            // hashmap for storing lastModified of each file
             Map<String, Long> lastModifiedMap = new HashMap<>();
-            
-            //manually populate for existing files
+
+            // manually populate for existing files
             Long timenow = System.currentTimeMillis();
             lastModifiedMap.put("file1.txt", timenow);
             lastModifiedMap.put("file2.txt", timenow);
             lastModifiedMap.put("file3.txt", timenow);
             lastModifiedMap.put("testfile.txt", timenow);
-            
 
             while (true) {
                 Helper.printFileLastModifiedTime(lastModifiedMap);
                 byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-                byte[] returnedMessage;
-                DatagramPacket sendPacket;
                 // Receive packet from client
                 serverSocket.receive(receivePacket);
                 System.out.println("Packet Received from: " + receivePacket.getAddress() + " Client Port: "
@@ -67,31 +62,34 @@ public class UDPServer {
                 switch (clientChosen) {
                     case 1:
                         fileContent = readFile(unmarshalledStrings);
-                        System.out.println("CLIENT READ: SENDING THE FOLLOWING - " + Arrays.toString(unmarshalledStrings) + " | fileContent and LastModifiedTime: " + String.valueOf(lastModifiedMap.get(unmarshalledStrings[1])));
-                        serverHandler.reply(receivePacket, 1, 
-                        unmarshalledStrings[2], 
-                        unmarshalledStrings[3], 
-                        unmarshalledStrings[4] , 
-                        fileContent, 
-                        String.valueOf(lastModifiedMap.get(unmarshalledStrings[2])));
+                        System.out.println("CLIENT READ: SENDING THE FOLLOWING - "
+                                + Arrays.toString(unmarshalledStrings) + " | fileContent and LastModifiedTime: "
+                                + String.valueOf(lastModifiedMap.get(unmarshalledStrings[1])));
+                        serverHandler.reply(receivePacket, 1,
+                                unmarshalledStrings[2],
+                                unmarshalledStrings[3],
+                                unmarshalledStrings[4],
+                                fileContent,
+                                String.valueOf(lastModifiedMap.get(unmarshalledStrings[2])));
                         // funcId, packetid, filename, offset, readBytes, filecontent, time
                         break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
-                        
-                        //to ensure lastModifiedTime is the same, server will update and send the time back to client
+
+                        // to ensure lastModifiedTime is the same, server will update and send the time
+                        // back to client
                         Long lastModifiedTime = System.currentTimeMillis();
                         lastModifiedMap.put(unmarshalledStrings[2], lastModifiedTime);
-
-                        serverHandler.reply(receivePacket, 4, "File successfully updated", unmarshalledStrings[2] , String.valueOf(lastModifiedTime));
-                        
                         String file = unmarshalledStrings[2];
-                        List<Callback> clientList = registry.get("bin/resources/" + file);
-                        if (clientList != null) {
-                            String message = String.format("Update! %s has been updated! \n New content: %s", file,
-                                    fileContent);
+                        serverHandler.reply(receivePacket, 4, "File successfully updated", file,
+                                String.valueOf(lastModifiedTime));
 
-                            serverHandler.newUpdate(message, file, clientList);
+                        List<Callback> clientList = new ArrayList<Callback>(registry.get("bin/resources/" + file));
+                        if (clientList != null || clientList.size() > 0) {
+                            byte[] sendData = marshaller.marshal(4, 0,
+                                    fileContent, file,
+                                    String.valueOf(lastModifiedTime));
+                            serverHandler.newUpdate(sendData, file, clientList);
                         }
                         break;
                     case 3:
@@ -99,8 +97,8 @@ public class UDPServer {
                         serverHandler.reply(receivePacket, 2, fileContent);
                         break;
                     case 4:
-                        String filePath = "bin/resources/" + unmarshalledStrings[1];
-                        int duration = Integer.parseInt(unmarshalledStrings[2]); // Duration in seconds
+                        String filePath = "bin/resources/" + unmarshalledStrings[2];
+                        int duration = Integer.parseInt(unmarshalledStrings[3]); // Duration in seconds
                         Callback callback = new Callback(clientAddress, clientPort);
                         new java.util.Timer().schedule(new removeMonitor(callback, registry, filePath, serverHandler),
                                 duration * 1000);
@@ -115,7 +113,7 @@ public class UDPServer {
                             registry.put(filePath, currentArray);
                         }
                         fileContent = "Acknowledged! Client added to monitoring mode";
-                        serverHandler.reply(receivePacket, 4, fileContent);
+                        serverHandler.reply(receivePacket, 3, fileContent);
 
                         break;
                     case 5:
@@ -125,17 +123,23 @@ public class UDPServer {
                     case 6:
                         fileContent = insertFile(unmarshalledStrings);
                         serverHandler.reply(receivePacket, 1, fileContent);
+                        break;
+                    // General Acknowledgement
+                    case 7:
+                        Callback client = new Callback(receivePacket.getAddress(), receivePacket.getPort());
+                        serverHandler.removeClient(unmarshalledStrings[2], client);
+                        System.out.println("Ack Received!");
+                        break;
                     case 10:
-                        //for client to request modified time of file
+                        // for client to request modified time of file
                         System.err.println(Arrays.toString(unmarshalledStrings));
                         Long lastModified = lastModifiedMap.get(unmarshalledStrings[2]);
-                        if (lastModified != null){
-                            serverHandler.reply(receivePacket, 1,  String.valueOf(lastModified));
+                        if (lastModified != null) {
+                            serverHandler.reply(receivePacket, 1, String.valueOf(lastModified));
                         } else {
                             serverHandler.reply(receivePacket, 1, "Missing file in server");
                         }
                         break;
-
 
                     default:
                         System.out.println(
@@ -161,8 +165,8 @@ public class UDPServer {
         String content = "No content in file";
 
         try (
-            // Read file content
-            RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
+                // Read file content
+                RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
             file.seek(offset);
             byte[] buffer = new byte[noOfBytes];
             file.readFully(buffer);
@@ -214,7 +218,7 @@ public class UDPServer {
                 readValue += file.readLine();
             }
             file.close();
-            
+
             return readValue;
         } catch (FileNotFoundException e) {
             content = "File does not exist on server";
@@ -275,7 +279,6 @@ public class UDPServer {
         } catch (FileNotFoundException e) {
             content = e.getMessage();
         } catch (IOException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
         return content;
@@ -316,10 +319,7 @@ public class UDPServer {
 
         @Override
         public void run() {
-
             registry.get(filePath).remove(callback);
-            String message = "1";
-            serverHandler.send(callback, 3, message);
             cancel();
         }
     }

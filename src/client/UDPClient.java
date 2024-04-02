@@ -1,11 +1,8 @@
 package client;
 
-import java.io.File;
-import java.io.RandomAccessFile;
 import java.net.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.rmi.MarshalException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.Arrays;
@@ -33,7 +30,8 @@ public class UDPClient {
     }
 
     public void startProgram(String serverHostname, int serverPort, long freshnessIntervalInSeconds) {
-        System.out.println(String.format("Starting client {Server Name: %s | Port: %s | FreshnessInterval: %s}", serverHostname, serverPort, freshnessIntervalInSeconds));
+        System.out.println(String.format("Starting client {Server Name: %s | Port: %s | FreshnessInterval: %s}",
+                serverHostname, serverPort, freshnessIntervalInSeconds));
         scanner = new Scanner(System.in);
         marshaller = new Marshaller();
         cacheManager = new CacheManager(freshnessIntervalInSeconds);
@@ -125,7 +123,8 @@ public class UDPClient {
                         data = data.substring(4);
                     } else {
                         System.out.println("CLIENT RECEIVED: " + Arrays.toString(unmarshalledStrings));
-                        cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data, Long.parseLong(unmarshalledStrings[6]));
+                        cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data,
+                                Long.parseLong(unmarshalledStrings[6]));
                     }
                     System.out.println("Server Replied: " + data);
                     break;
@@ -134,9 +133,15 @@ public class UDPClient {
                     System.out.println("List of files: ");
                     System.out.println(unmarshalledStrings[2]);
                     break;
+                case 3:
+                    // Print simple string messages
+                    System.out.println(unmarshalledStrings[2]);
+                    break;
                 case 4:
                     // Print response from server for WRITE TO FILE
-                    System.out.println("Server Replied: " + unmarshalledStrings[2] + " | Updated " + unmarshalledStrings[3] + " at " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[4])));
+                    System.out.println(
+                            "Server Replied: " + unmarshalledStrings[2] + " | Updated " + unmarshalledStrings[3]
+                                    + " at " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[4])));
                     cacheManager.setLastModified(unmarshalledStrings[3], Long.parseLong(unmarshalledStrings[4]));
                     break;
                 default:
@@ -196,7 +201,8 @@ public class UDPClient {
                 }
                 break;
             }
-            if (!cacheManager.fileExistInCache(filePathString) || cacheManager.readFromCache(filePathString, offset, readBytes) == null) {
+            if (!cacheManager.fileExistInCache(filePathString)
+                    || cacheManager.readFromCache(filePathString, offset, readBytes) == null) {
                 // File does not exist in cache, retrieve from server
                 // lastModifiedTime is updated in receive()
                 network.send(1, filePathString, offsetString, byteString);
@@ -206,11 +212,9 @@ public class UDPClient {
             }
             if (!cacheManager.isValidated(filePathString)) {
                 // File exists in cache but not validated
-                //get lastModifiedTime from server
-                //check for lastModified of file from server
+                // get lastModifiedTime from server
+                // check for lastModified of file from server
                 network.send(10, filePathString);
-                
-                byte[] receiveData = new byte[1024];
                 // Receive response from server
                 DatagramPacket receivePacket = network.receive();
 
@@ -229,7 +233,7 @@ public class UDPClient {
                     cacheManager.setValidated(filePathString);
                 }
             }
-            
+
             // File exists in cache and is validated or not modified
             // Read from cache
             System.out.println("FILE IS UPDATED IN CACHE");
@@ -322,21 +326,20 @@ public class UDPClient {
 
             // Send packet
             network.send(4, filePath, durationString);
+            receive(network.receive());
             while (true) {
-                DatagramPacket receivePacket = network.receive();
+                DatagramPacket receivePacket = network.waitReceive((duration + 1) * 1000);
                 if (receivePacket == null) {
-                    continue;
-                }
-                String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
-                int message = Integer.parseInt(unmarshalledStrings[2]);
-                if (message == 1) {
                     System.out.println("Ending Monitoring");
                     break;
-                } else {
-                    System.out.println("Monitoring received with funcId: " + unmarshalledStrings[1] + " | lastModifiedTime: " + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[5])));
-                    System.out.println(unmarshalledStrings[3]);
-                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[4], Long.parseLong(unmarshalledStrings[5]));
                 }
+                String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
+                String message = unmarshalledStrings[2];
+                System.out.println(
+                        "Monitoring received with funcId: " + unmarshalledStrings[1] + " | lastModifiedTime: "
+                                + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[4])));
+                cacheManager.clearAndReplaceCache(filePath, message, Long.parseLong(unmarshalledStrings[4]));
+                network.sendAck(7, filePath);
             }
 
         } catch (Exception e) {
