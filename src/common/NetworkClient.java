@@ -88,13 +88,13 @@ public class NetworkClient {
         }
     }
 
-    public DatagramPacket waitReceive(int timeout) {
+    public DatagramPacket waitReceive() {
         byte[] receiveData = new byte[1024];
         DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
         try {
-            socket.setSoTimeout(timeout);
             socket.receive(receivePacket);
         } catch (Exception e) {
+
             return null;
         }
         return receivePacket;

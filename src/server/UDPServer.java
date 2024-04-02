@@ -72,8 +72,7 @@ public class UDPServer {
                                 unmarshalledStrings[4],
                                 fileContent,
                                 String.valueOf(lastModifiedMap.get(unmarshalledStrings[2])));
-                        // funcId, packetid, filename, offset, readBytes, filecontent, time
-                        break;
+                        // funcId, packetid, filename, offset, readBytes, filecontent, t break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
 

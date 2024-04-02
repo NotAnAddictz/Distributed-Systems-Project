@@ -5,8 +5,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
+import java.sql.Time;
 import java.util.Arrays;
 import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 
 import common.Helper;
 import common.Marshaller;
@@ -46,9 +48,9 @@ public class UDPClient {
             System.exit(0);
         }
 
-        try {
-            int chosen = 0;
-            while (true) {
+        int chosen = 0;
+        while (true) {
+            try {
                 // UI
                 System.out.println("==================================");
                 System.out.println("1: Read file on (n) bytes.");
@@ -97,11 +99,14 @@ public class UDPClient {
                         System.out.println("Invalid option.");
                         break;
                 }
+            } catch (NumberFormatException n) {
+                System.out.println("Please enter a valid number");
+                continue;
+            } catch (Exception e) {
+                scanner.close();
+                e.printStackTrace();
+                break;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            scanner.close();
         }
     }
 
@@ -326,11 +331,17 @@ public class UDPClient {
             // Send packet
             network.send(4, filePath, durationString);
             receive(network.receive());
+            long currentTime = System.currentTimeMillis();
+            long endTime = currentTime + duration * 1000;
             while (true) {
-                DatagramPacket receivePacket = network.waitReceive((duration + 1) * 1000);
+                DatagramPacket receivePacket = network.waitReceive();
+
                 if (receivePacket == null) {
-                    System.out.println("Ending Monitoring");
-                    break;
+                    if (System.currentTimeMillis() > endTime) {
+                        System.out.println("Ending Monitoring");
+                        break;
+                    }
+                    continue;
                 }
                 String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
                 String message = unmarshalledStrings[2];
