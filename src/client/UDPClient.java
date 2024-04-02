@@ -9,26 +9,32 @@ import java.rmi.MarshalException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.Scanner;
-import java.util.concurrent.TimeUnit;
 
 import common.Marshaller;
 import common.NetworkClient;
 
 public class UDPClient {
     Scanner scanner;
+    Marshaller marshaller;
+    InetAddress serverAddress;
+    int serverPort;
+    CacheManager cacheManager;
     NetworkClient network;
 
     public static void main(String[] args) {
         // Program arguments
         String serverHostname = args[0];
         int serverPort = Integer.parseInt(args[1]);
-
+        long freshnessIntervalInSeconds = Long.parseLong(args[2]);
+        
         UDPClient udpClient = new UDPClient();
-        udpClient.startProgram(serverHostname, serverPort);
+        udpClient.startProgram(serverHostname, serverPort, freshnessIntervalInSeconds);
     }
 
-    public void startProgram(String serverHostname, int serverPort) {
+    public void startProgram(String serverHostname, int serverPort, long freshnessIntervalInSeconds) {
+        System.out.println(String.format("Starting client {Server Name: %s | Port: %s | FreshnessInterval: %s}", serverHostname, serverPort, freshnessIntervalInSeconds));
         scanner = new Scanner(System.in);
+        cacheManager = new CacheManager(freshnessIntervalInSeconds);
         try {
             // Configuring client socket
             DatagramSocket socket = new DatagramSocket();
@@ -109,17 +115,25 @@ public class UDPClient {
             // Read received packet
             String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
             int serverChosen = Integer.parseInt(unmarshalledStrings[0]);
-
-            // Run following actions
             switch (serverChosen) {
                 case 1:
-                    // Print response from server
-                    System.out.println("Server Replied: " + unmarshalledStrings[2]);
+                    // Print response from server for READ FILE
+                    String data = unmarshalledStrings[5];
+                    if (data.startsWith("404:")) {
+                        data = data.substring(4);
+                    } else {
+                        cacheManager.addToCache(unmarshalledStrings[2], Integer.parseInt(unmarshalledStrings[3]), data);
+                    } 
+                    System.out.println("Server Replied: " + data);
                     break;
                 case 2:
                     // Display list of files
                     System.out.println("List of files: ");
                     System.out.println(unmarshalledStrings[2]);
+                    break;
+                case 4:
+                    // Print response from server for WRITE TO FILE
+                    System.out.println("Server Replied: " + unmarshalledStrings[1]);
                     break;
                 default:
                     System.out
@@ -179,13 +193,23 @@ public class UDPClient {
                 break;
             }
 
-            // Send packet
-            try {
+            String data = cacheManager.readFromCache(filePathString, offset, readBytes);
+            if (data != null) {
+                // Data in cache
+                System.out.println("Data found in cache: " + data);
+            } else {
+                // Data not cached
+                // Send packet to server
+                try {
                 network.send(1, filePathString, offsetString, byteString);
+
+                // Receive packet
                 receive(network.receive());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } 
         }
     }
 
@@ -225,6 +249,7 @@ public class UDPClient {
             // Send packet
             try {
                 network.send(2, filePathString, offsetString, writeString);
+                cacheManager.addToCache(filePathString, offset, writeString);
                 receive(network.receive());
             } catch (Exception e) {
                 e.printStackTrace();
@@ -282,6 +307,7 @@ public class UDPClient {
                     break;
                 } else {
                     System.out.println(unmarshalledStrings[3]);
+                    cacheManager.clearAndReplaceCache(filePath, unmarshalledStrings[4]);
                 }
             }
 

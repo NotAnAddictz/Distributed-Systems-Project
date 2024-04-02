@@ -120,8 +120,8 @@ public class UDPServer {
         String content = "No content in file";
 
         try (
-                // Read file content
-                RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
+            // Read file content
+            RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
             file.seek(offset);
             byte[] buffer = new byte[noOfBytes];
             file.readFully(buffer);
@@ -131,11 +131,11 @@ public class UDPServer {
             String readValue = new String(buffer, StandardCharsets.UTF_8);
             return readValue;
         } catch (FileNotFoundException e) {
-            content = "File does not exist on server";
+            content = "404:File does not exist on server.";
         } catch (EOFException e) {
-            content = "Offset exceed file length";
+            content = "404:End of file error.";
         } catch (IOException e) {
-            content = "IOException Error";
+            content = "404:IOException Error";
             e.printStackTrace();
         }
         return content;
@@ -174,6 +174,7 @@ public class UDPServer {
                 readValue += file.readLine();
             }
             file.close();
+            
             return readValue;
         } catch (FileNotFoundException e) {
             content = "File does not exist on server";
