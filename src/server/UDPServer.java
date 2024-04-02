@@ -22,13 +22,14 @@ import common.NetworkServer;
 
 public class UDPServer {
     public static void main(String[] args) {
+        boolean isAtMostOnce = args[1].equals("1");
         DatagramSocket serverSocket = null;
         Marshaller marshaller = new Marshaller();
 
         try {
             // Create a UDP socket
             serverSocket = new DatagramSocket(Integer.parseInt(args[0])); // Port number can be any available port
-            NetworkServer serverHandler = new NetworkServer(serverSocket);
+            NetworkServer serverHandler = new NetworkServer(serverSocket, isAtMostOnce);
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
 
             // hashmap for storing lastModified of each file
@@ -83,9 +84,9 @@ public class UDPServer {
                         String file = unmarshalledStrings[2];
                         serverHandler.reply(receivePacket, 4, "File successfully updated", file,
                                 String.valueOf(lastModifiedTime));
-
-                        List<Callback> clientList = new ArrayList<Callback>(registry.get("bin/resources/" + file));
-                        if (clientList != null || clientList.size() > 0) {
+                        List<Callback> clients = registry.get("bin/resources/" + file);
+                        if (clients != null) {
+                            List<Callback> clientList = new ArrayList<Callback>(clients);
                             byte[] sendData = marshaller.marshal(4, 0,
                                     fileContent, file,
                                     String.valueOf(lastModifiedTime));
@@ -100,7 +101,7 @@ public class UDPServer {
                         String filePath = "bin/resources/" + unmarshalledStrings[2];
                         int duration = Integer.parseInt(unmarshalledStrings[3]); // Duration in seconds
                         Callback callback = new Callback(clientAddress, clientPort);
-                        new java.util.Timer().schedule(new removeMonitor(callback, registry, filePath, serverHandler),
+                        new java.util.Timer().schedule(new removeMonitor(callback, registry, filePath),
                                 duration * 1000);
                         // Adding into the registry
                         if (registry.get(filePath) == null) {
@@ -307,14 +308,11 @@ public class UDPServer {
         private Callback callback;
         private Dictionary<String, List<Callback>> registry;
         private String filePath;
-        private NetworkServer serverHandler;
 
-        removeMonitor(Callback callback, Dictionary<String, List<Callback>> registry, String filePath,
-                NetworkServer serverHandler) {
+        removeMonitor(Callback callback, Dictionary<String, List<Callback>> registry, String filePath) {
             this.callback = callback;
             this.registry = registry;
             this.filePath = filePath;
-            this.serverHandler = serverHandler;
         }
 
         @Override

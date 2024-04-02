@@ -110,7 +110,6 @@ public class UDPClient {
         if (receivePacket == null) {
             return false;
         }
-
         try {
             // Read received packet
             String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
@@ -335,6 +334,9 @@ public class UDPClient {
                 }
                 String[] unmarshalledStrings = new Marshaller().unmarshal(receivePacket.getData());
                 String message = unmarshalledStrings[2];
+                if (Integer.parseInt(unmarshalledStrings[1]) != 0) {
+                    continue;
+                }
                 System.out.println(
                         "Monitoring received with funcId: " + unmarshalledStrings[1] + " | lastModifiedTime: "
                                 + Helper.convertLastModifiedTime(Long.parseLong(unmarshalledStrings[4])));
