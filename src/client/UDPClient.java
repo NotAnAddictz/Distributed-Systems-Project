@@ -173,7 +173,6 @@ public class UDPClient {
                     System.out.println("IN CASE 6: " + Arrays.toString(unmarshalledStrings));
                     System.out.println("Server Replied: " + unmarshalledStrings[2] + " added to server files");
 
-                    //replace existing file or add on to it?
                     cacheManager.clearAndReplaceCache(unmarshalledStrings[2], unmarshalledStrings[3], Long.parseLong(unmarshalledStrings[4]));
                     break;
                     

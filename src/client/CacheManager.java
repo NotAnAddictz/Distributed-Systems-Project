@@ -15,6 +15,8 @@ public class CacheManager {
         this.freshnessIntervalSeconds = freshnessIntervalSeconds;
     }
 
+    // Add or Update cache content based on filename, offset and data to be inserted.
+    // LastModifiedTime should be updated manually after server reply.
     public void addToCache(String filename, int offset, String data) {
         char[] charData = data.toCharArray();
         CacheEntry cacheEntry = cache.getOrDefault(filename, new CacheEntry(new char[offset + charData.length], System.currentTimeMillis()));
@@ -30,13 +32,10 @@ public class CacheManager {
         System.arraycopy(charData, 0, cacheEntry.getData(), offset, charData.length);
         cacheEntry.setLastValidated(System.currentTimeMillis());
         cache.put(filename, cacheEntry);
-        // if (lastModifiedTime != null) {
-        //     //null when we addToCache before sending changes to server, receive() will update lastModified instead in this case.
-        //     setLastModified(filename, lastModifiedTime);
-        // }
         System.out.println("UPDATED CACHE: " + Arrays.toString(cacheEntry.getData()));
     }
 
+    // Clear contents in cache and overwrites file content entirely with new data. LastModifiedTime is updated.
     public void clearAndReplaceCache(String filename, String newData, Long lastModifiedTime) {
         char[] charData = newData.toCharArray();
         CacheEntry cacheEntry = new CacheEntry(charData, System.currentTimeMillis());
@@ -45,6 +44,7 @@ public class CacheManager {
         System.out.println("UPDATED CACHE: " + Arrays.toString(charData));
     }
 
+    // Reads from cache based on filename, offset and numBytes. return null if data is not found in cache.
     public String readFromCache(String filename, int offset, int numBytes) {
         CacheEntry cacheEntry = cache.get(filename);
         if (cacheEntry == null) {
@@ -68,11 +68,13 @@ public class CacheManager {
         return new String(result);
     }
 
+    // Remove content from cache.
     public void removeFromCache(String filename) {
         cache.remove(filename);
         System.out.println(filename  + " removed from cache");
     }
 
+    // Used to check that data does not have leading or trailing space assumed to not be in a valid file content.
     private boolean hasLeadingOrTrailingSpace(char[] data, int offset, int numBytes) {
         // Check for leading empty space
         for (int i = offset; i < offset + numBytes; i++) {
@@ -97,11 +99,13 @@ public class CacheManager {
         return false;
     }
 
+    // Set lastValidated of cache content to current time. lastValidated applies to entire file.
     public void setValidated(String fileName) {
         CacheEntry entry = cache.get(fileName);
         entry.setLastValidated(System.currentTimeMillis());
     }
-    // Method to check if a cache entry is valid based on freshness interval
+    
+    // Method to check if a cache entry is valid based on freshness interval.
     public boolean isValidated(String fileName) {
         CacheEntry entry = cache.get(fileName);
         long tc = entry.getLastValidated();
@@ -114,6 +118,7 @@ public class CacheManager {
         }
     }
 
+    // Set lastModified of a file after server replies the lastModifiedTime set for the specific file.
     public void setLastModified(String fileName, Long lastModifiedTime) {
         CacheEntry entry = cache.get(fileName);
         if (lastModifiedTime != null) {
@@ -121,6 +126,8 @@ public class CacheManager {
         }
     }
 
+    // Used to check if cache content is up to date with server. 
+    // ServerLastModifiedTime is retrieved from server to compare.
     public boolean isModified(String fileName, Long serverLastModifiedTime) {
         CacheEntry entry = cache.get(fileName);
         if (entry.getLastModified() < serverLastModifiedTime) {
@@ -130,11 +137,14 @@ public class CacheManager {
         }
     }
 
+    // Used to check if file exist in cache regardless of content.
     public boolean fileExistInCache(String fileName) {
         return cache.containsKey(fileName);
     }
 
-    //function checks
+    // Used to check that the string indicated is the only string in the cache of a file. 
+    // Important for when deciding whether to update lastModifiedTime of a cache 
+    // as there may be existing content in the cache that is not up to date.
     public boolean stringExists(String fileName, String str) {
         String arrayString = new String(cache.get(fileName).getData());
         int index = arrayString.indexOf(str);
@@ -148,6 +158,7 @@ public class CacheManager {
         return false;
     }
 
+    // To visualise cache content in client side
     public void printCacheContents() {
         System.out.println();
         System.out.println("-------------------CACHE CONTENTS-------------------");
