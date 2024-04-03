@@ -99,13 +99,13 @@ public class NetworkServer {
             byte[] sendData = marshaller.marshal(funcId, packetId, args);
             sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
             history.put(uniqueID, sendPacket);
-            System.err.println("New packet created");
+            System.err.println("New packet created, packetId: " + packetId);
         }
 
         // Simulate failure via delays or when packet drops in transit
         int rnd = new Random().nextInt(3);
         if (rnd == 2) {
-            System.err.println("Dropped in transit");
+            System.err.println("Dropped in transit\n");
             return;
         } else if (rnd == 1) {
             try {
