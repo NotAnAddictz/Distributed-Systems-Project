@@ -55,10 +55,10 @@ public class UDPServer {
 
             // manually populate for existing files
             Long timenow = System.currentTimeMillis();
-            fileManager.addFile("file1.txt", timenow);
-            fileManager.addFile("file2.txt", timenow);
-            fileManager.addFile("file3.txt", timenow);
-            fileManager.addFile("testfile.txt", timenow);
+            String[] cacheFiles = listFiles().split("\n");
+            for (int i = 0; i < cacheFiles.length; i++) {
+                fileManager.addFile(cacheFiles[i], timenow);
+            }
 
             while (true) {
                 fileManager.printAllFiles();
@@ -113,7 +113,7 @@ public class UDPServer {
                         }
                         break;
                     case 3:
-                        fileContent = listFiles(unmarshalledStrings);
+                        fileContent = listFiles();
                         serverHandler.reply(receivePacket, 2, fileContent);
                         break;
                     case 4:
@@ -355,18 +355,19 @@ public class UDPServer {
         }
     }
 
-    public static String listFiles(String[] unmarshalledStrings) {
-        File folder = new File("bin/resources/");
-        return listFilesInFolder(folder, 0);
+    public static String listFiles() {
+        String base = "bin\\resources\\";
+        File folder = new File(base);
+        return listFilesInFolder(folder).replace(base, "");
     }
 
-    private static String listFilesInFolder(File folder, int depth) {
+    private static String listFilesInFolder(File folder) {
         String files = "";
         for (final File file : folder.listFiles()) {
             if (file.isDirectory()) {
-                listFilesInFolder(file, depth + 1);
+                files += listFilesInFolder(file);
             } else {
-                files += " ".repeat(depth) + file.getName() + "\n";
+                files += file.getPath() + "\n";
             }
         }
         return files;
