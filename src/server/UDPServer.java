@@ -62,13 +62,12 @@ public class UDPServer {
 
             while (true) {
                 fileManager.printAllFiles();
-                byte[] receiveData = new byte[1024];
-                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-                // Receive packet from client
-                serverSocket.receive(receivePacket);
-                System.out.println("Packet Received from: " + receivePacket.getAddress() + " Client Port: "
-                        + receivePacket.getPort());
-
+                
+                DatagramPacket receivePacket = serverHandler.receive();
+                if (receivePacket == null) {
+                    continue;
+                }
+                
                 // Get client's address and port number
                 InetAddress clientAddress = receivePacket.getAddress();
                 int clientPort = receivePacket.getPort();

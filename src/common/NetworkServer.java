@@ -1,5 +1,6 @@
 package common;
 
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -26,6 +27,40 @@ public class NetworkServer {
         this.isAtMostOnce = isAtMostOnce;
     }
 
+    public DatagramPacket receive() {
+        byte[] receiveData = new byte[1024];
+        DatagramPacket receivedPacket = new DatagramPacket(receiveData, receiveData.length);
+        // Receive packet from client
+        try {
+            socket.receive(receivedPacket);
+
+            String[] data = marshaller.unmarshal(receiveData);
+
+            // Received packet data
+            int packetId = Integer.parseInt(data[1]);
+            InetAddress clientAddress = receivedPacket.getAddress();
+            int clientPort = receivedPacket.getPort();
+
+            // At-Most-Once history
+            String uniqueID = clientAddress.toString() + ":" + String.valueOf(clientPort) + ":" + String.valueOf(packetId);
+
+            if (isAtMostOnce) {
+                if (history.get(uniqueID) != null) {
+                    reply(receivedPacket, -1, null);
+                    return null;
+                }
+            }
+
+            System.out.println("Packet Received from: " + receivedPacket.getAddress() + " Client Port: "
+                + receivedPacket.getPort());
+            return receivedPacket;
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public void send(Callback client, int funcId, String... args) {
         int packetId = packetIndex;
         packetIndex++;
@@ -46,7 +81,8 @@ public class NetworkServer {
 
     public void reply(DatagramPacket receivedPacket, int funcId, String... args) {
         // Received packet data
-        int packetId = Integer.parseInt(marshaller.unmarshal(receivedPacket.getData())[1]);
+        String[] data = marshaller.unmarshal(receivedPacket.getData());
+        int packetId = Integer.parseInt(data[1]);
         InetAddress clientAddress = receivedPacket.getAddress();
         int clientPort = receivedPacket.getPort();
 
