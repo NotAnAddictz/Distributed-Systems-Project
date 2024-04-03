@@ -162,6 +162,11 @@ public class UDPClient {
                     break;
                 case 5:
                     //delete
+                    System.out.println("IN CASE 5: " + Arrays.toString(unmarshalledStrings));
+                    System.out.println("Server Replied: " + unmarshalledStrings[2]);
+                    if (cacheManager.fileExistInCache(unmarshalledStrings[3])) {
+                        cacheManager.removeFromCache(unmarshalledStrings[3]);
+                    }
                     break;
                 case 6:
                     //insert

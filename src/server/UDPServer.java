@@ -142,7 +142,7 @@ public class UDPServer {
                         fileContent = deleteFile(unmarshalledStrings);
 
                         //client should only clear cache for file if server replies.
-                        serverHandler.reply(receivePacket, 1, fileContent);
+                        serverHandler.reply(receivePacket, 5, fileContent, unmarshalledStrings[2]);
                         break;
                     case 6:
                         Long timeNow = System.currentTimeMillis();
@@ -258,8 +258,8 @@ public class UDPServer {
         return content;
     }
 
-    public static String deleteFile(String[] unmarshalledStrings) {
-        String filePath = "bin/resources/" + unmarshalledStrings[1];
+    public String deleteFile(String[] unmarshalledStrings) {
+        String filePath = "bin/resources/" + unmarshalledStrings[2];
         String content = "";
 
         try {
@@ -269,6 +269,7 @@ public class UDPServer {
             }
             if (file.delete()) {
                 content = "File deleted";
+                fileManager.removeFile(unmarshalledStrings[2]);
             }
         } catch (FileNotFoundException e) {
             content = e.getMessage();

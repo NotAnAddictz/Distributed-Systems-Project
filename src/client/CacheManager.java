@@ -68,6 +68,11 @@ public class CacheManager {
         return new String(result);
     }
 
+    public void removeFromCache(String filename) {
+        cache.remove(filename);
+        System.out.println(filename  + " removed from cache");
+    }
+
     private boolean hasLeadingOrTrailingSpace(char[] data, int offset, int numBytes) {
         // Check for leading empty space
         for (int i = offset; i < offset + numBytes; i++) {
