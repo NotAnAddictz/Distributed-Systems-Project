@@ -5,11 +5,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.sql.Time;
 import java.util.Arrays;
 import java.util.Scanner;
-import java.util.concurrent.TimeUnit;
-
 import common.Helper;
 import common.Marshaller;
 import common.NetworkClient;
@@ -93,6 +90,7 @@ public class UDPClient {
                         insertFile();
                         break;
                     case 7:
+                        // Exit program and returns exit code 200
                         System.out.println("Exiting program.");
                         System.exit(200);
                         break;
@@ -111,6 +109,7 @@ public class UDPClient {
         }
     }
 
+    // Functions that the Server can call
     public boolean receive(DatagramPacket receivePacket) {
         // No packet received from server
         if (receivePacket == null) {
@@ -392,10 +391,13 @@ public class UDPClient {
         try {
             String delete;
             if (listAllFiles()) {
+                // Retrieve file details
                 System.out.printf("Enter file path: ");
                 String filePathString = scanner.nextLine();
                 System.out.printf("Are you sure? (y/n): ");
                 delete = scanner.nextLine();
+
+                // Check if delete is yes and request Server to delete file
                 if (delete.equalsIgnoreCase("y")) {
                     network.send(5, filePathString);
                     receive(network.receive());
@@ -411,10 +413,13 @@ public class UDPClient {
 
     public boolean insertFile() {
         try {
+            // Retrieve local file and remote file details
             System.out.printf("Enter filepath(local file) to insert: ");
             String filePathString = scanner.nextLine();
             System.out.printf("Enter filepath(remote file): ");
             String insertPath = scanner.nextLine();
+
+            // Read content in local file and request Server to create a copy of it as a remote file on the Server.
             String content = new String(Files.readAllBytes(Paths.get(filePathString)));
             network.send(6, insertPath, content);
             receive(network.receive());

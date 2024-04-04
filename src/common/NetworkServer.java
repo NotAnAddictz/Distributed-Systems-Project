@@ -44,9 +44,9 @@ public class NetworkServer {
             // At-Most-Once history
             String uniqueID = clientAddress.toString() + ":" + String.valueOf(clientPort) + ":" + String.valueOf(packetId);
 
-            if (isAtMostOnce) {
-                if (history.get(uniqueID) != null) {
-                    reply(receivedPacket, -1, null);
+            if (isAtMostOnce) { 
+                if (history.get(uniqueID) != null) { // If client command has been executed
+                    reply(receivedPacket, -1, null); // Return calculated packet
                     return null;
                 }
             }
@@ -55,7 +55,6 @@ public class NetworkServer {
                 + receivedPacket.getPort());
             return receivedPacket;
         } catch (IOException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
         return null;
@@ -90,12 +89,13 @@ public class NetworkServer {
         String uniqueID = clientAddress.toString() + ":" + String.valueOf(clientPort) + ":" + String.valueOf(packetId);
         DatagramPacket sendPacket = null;
 
-        if (isAtMostOnce) {
+        if (isAtMostOnce) { // Set the packet to be sent as the old packet
             sendPacket = history.get(uniqueID);
         }
-        if (sendPacket != null) {
+
+        if (sendPacket != null) { // If a request had came in before, send the old packet calculated
             System.err.println("Old packet resent");
-        } else {
+        } else { // Else, send a new packet based on the data passed to this function
             byte[] sendData = marshaller.marshal(funcId, packetId, args);
             sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
             history.put(uniqueID, sendPacket);

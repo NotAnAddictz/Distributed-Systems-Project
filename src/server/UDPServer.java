@@ -10,10 +10,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Dictionary;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
-import java.util.Map;
 import java.util.TimerTask;
 
 import common.Helper;
@@ -27,6 +25,7 @@ public class UDPServer {
     Marshaller marshaller;
     
     public static void main(String[] args){
+        // Server setup
         boolean isAtMostOnce = args[1].equals("1");
         UDPServer udpServer = new UDPServer();
         DatagramSocket serverSocket = null; 
@@ -53,16 +52,18 @@ public class UDPServer {
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
 
 
-            // manually populate for existing files
+            // Manually populate fileManager for existing files
             Long timenow = System.currentTimeMillis();
             String[] cacheFiles = listFiles().split("\n");
             for (int i = 0; i < cacheFiles.length; i++) {
                 fileManager.addFile(cacheFiles[i], timenow);
             }
 
+            // Server process
             while (true) {
                 fileManager.printAllFiles();
                 
+                // Retrieve data from socket
                 DatagramPacket receivePacket = serverHandler.receive();
                 if (receivePacket == null) {
                     continue;
@@ -72,24 +73,28 @@ public class UDPServer {
                 InetAddress clientAddress = receivePacket.getAddress();
                 int clientPort = receivePacket.getPort();
 
+                // Process data
                 byte[] receivedMessage = receivePacket.getData();
                 String[] unmarshalledStrings = marshaller.unmarshal(receivedMessage);
 
                 int clientChosen = Integer.parseInt(unmarshalledStrings[0]);
                 String fileContent;
+
+                // Functions for Client to call
                 switch (clientChosen) {
                     case 1:
                         fileContent = readFile(unmarshalledStrings);
                         System.out.println("CLIENT READ: SENDING THE FOLLOWING - "
                                 + Arrays.toString(unmarshalledStrings) + " | fileContent and LastModifiedTime: "
                                 + String.valueOf(fileManager.getLastModifiedTime(unmarshalledStrings[2])));
+
+                        // File content and Cache Response
                         serverHandler.reply(receivePacket, 1,
                                 unmarshalledStrings[2],
                                 unmarshalledStrings[3],
                                 unmarshalledStrings[4],
                                 fileContent,
                                 String.valueOf(fileManager.getLastModifiedTime(unmarshalledStrings[2])));
-                        // funcId, packetid, filename, offset, readBytes, filecontent, t 
                         break;
                     case 2:
                         fileContent = writeToFile(unmarshalledStrings);
@@ -113,6 +118,7 @@ public class UDPServer {
                         }
                         break;
                     case 3:
+                        // Retrieve a list of files on the Server recursively
                         fileContent = listFiles();
                         serverHandler.reply(receivePacket, 2, fileContent);
                         break;
@@ -262,10 +268,12 @@ public class UDPServer {
         String content = "";
 
         try {
+            // Find file
             File file = new File(filePath);
             if (!file.exists()) {
                 throw new FileNotFoundException("File does not exist on server");
             }
+
             if (file.delete()) {
                 content = "File deleted";
                 fileManager.removeFile(unmarshalledStrings[2]);
@@ -296,11 +304,17 @@ public class UDPServer {
                     break;
                 } else {
                     String fileType = "";
+
+                    // Last . refers to file type
                     int dotIndex = filePath.lastIndexOf('.');
                     if (dotIndex > 0 && dotIndex < filePath.length() - 1) {
+                        // Retrieve file type
                         fileType = filePath.substring(dotIndex + 1).toLowerCase();
+                        // Retrieve path till file type
                         filePath = filePath.substring(0, dotIndex);
                     }
+
+                    // Append _copy to fileNameWithoutExtension
                     filePath = filePath + "_copy." + fileType;
                     String fileNameWithoutExtension = Helper.extractFileName(unmarshalledStrings[2]);
                     fileName = fileNameWithoutExtension + "_copy." + fileType;
@@ -355,13 +369,13 @@ public class UDPServer {
         }
     }
 
-    public static String listFiles() {
+    public static String listFiles() { // Returns the file paths without the base directory
         String base = "bin\\resources\\";
         File folder = new File(base);
         return listFilesInFolder(folder).replace(base, "");
     }
 
-    private static String listFilesInFolder(File folder) {
+    private static String listFilesInFolder(File folder) { // Recursive loop through folder
         String files = "";
         for (final File file : folder.listFiles()) {
             if (file.isDirectory()) {
