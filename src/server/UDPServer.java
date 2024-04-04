@@ -19,20 +19,20 @@ import common.Marshaller;
 import common.NetworkServer;
 
 public class UDPServer {
-    
+
     // hashmap for storing lastModified of each file
     FileManager fileManager;
     Marshaller marshaller;
-    
-    public static void main(String[] args){
+
+    public static void main(String[] args) {
         // Server setup
         boolean isAtMostOnce = args[1].equals("1");
         UDPServer udpServer = new UDPServer();
-        DatagramSocket serverSocket = null; 
+        DatagramSocket serverSocket = null;
         try {
             serverSocket = new DatagramSocket(Integer.parseInt(args[0]));
             udpServer.startServer(isAtMostOnce, serverSocket);
-        }  catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         } finally {
             if (serverSocket != null) {
@@ -44,13 +44,12 @@ public class UDPServer {
     public void startServer(boolean isAtMostOnce, DatagramSocket serverSocket) {
         fileManager = new FileManager();
         marshaller = new Marshaller();
-        
+
         try {
             fileManager = new FileManager();
             // Create a UDP socket
             NetworkServer serverHandler = new NetworkServer(serverSocket, isAtMostOnce);
             Dictionary<String, List<Callback>> registry = new Hashtable<>(); // Creating registry for monitoring updates
-
 
             // Manually populate fileManager for existing files
             Long timenow = System.currentTimeMillis();
@@ -62,13 +61,13 @@ public class UDPServer {
             // Server process
             while (true) {
                 fileManager.printAllFiles();
-                
+
                 // Retrieve data from socket
                 DatagramPacket receivePacket = serverHandler.receive();
                 if (receivePacket == null) {
                     continue;
                 }
-                
+
                 // Get client's address and port number
                 InetAddress clientAddress = receivePacket.getAddress();
                 int clientPort = receivePacket.getPort();
@@ -104,17 +103,17 @@ public class UDPServer {
                         Long lastModifiedTime = System.currentTimeMillis();
                         fileManager.updateLastModifiedTime(unmarshalledStrings[2], lastModifiedTime);
 
-                        
-                        String file = unmarshalledStrings[2];
-                        serverHandler.reply(receivePacket, 4, "File successfully updated", file , String.valueOf(lastModifiedTime), unmarshalledStrings[4]);
-                        
-                        List<Callback> clients = registry.get("bin/resources/" + file);
+                        String fileName = unmarshalledStrings[2];
+                        serverHandler.reply(receivePacket, 4, "Name successfully updated", fileName,
+                                String.valueOf(lastModifiedTime), unmarshalledStrings[4]);
+
+                        List<Callback> clients = registry.get("bin/resources/" + fileName);
                         if (clients != null) {
                             List<Callback> clientList = new ArrayList<Callback>(clients);
                             byte[] sendData = marshaller.marshal(4, 0,
-                                    fileContent, file,
+                                    fileContent, fileName,
                                     String.valueOf(lastModifiedTime));
-                            serverHandler.newUpdate(sendData, file, clientList);
+                            serverHandler.newUpdate(sendData, fileName, clientList);
                         }
                         break;
                     case 3:
@@ -123,39 +122,59 @@ public class UDPServer {
                         serverHandler.reply(receivePacket, 2, fileContent);
                         break;
                     case 4:
-                        String filePath = "bin/resources/" + unmarshalledStrings[2];
-                        int duration = Integer.parseInt(unmarshalledStrings[3]); // Duration in seconds
-                        Callback callback = new Callback(clientAddress, clientPort);
-                        new java.util.Timer().schedule(new removeMonitor(callback, registry, filePath),
-                                duration * 1000);
-                        // Adding into the registry
-                        if (registry.get(filePath) == null) {
-                            List<Callback> currentArray = new ArrayList<Callback>();
-                            currentArray.add(callback);
-                            registry.put(filePath, currentArray);
-                        } else {
-                            List<Callback> currentArray = registry.get(filePath);
-                            currentArray.add(callback);
-                            registry.put(filePath, currentArray);
-                        }
-                        fileContent = "Acknowledged! Client added to monitoring mode";
-                        serverHandler.reply(receivePacket, 3, fileContent);
+                        try {
+                            String filePath = "bin/resources/" + unmarshalledStrings[2];
+                            File file = new File(filePath);
+                            // Checking if file exists
+                            if (!file.exists()) {
+                                throw new FileNotFoundException("File does not exist on server");
+                            }
+                            int duration = Integer.parseInt(unmarshalledStrings[3]); // Duration in seconds
+                            Callback callback = new Callback(clientAddress, clientPort);
+                            // Creating a new thread to remove client from registry once done
+                            new Thread() {
+                                public void run() {
+                                    try {
+                                        Thread.sleep(duration * 1000);
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
+                                    registry.get(filePath).remove(callback);
+                                }
+                            }.start();
+                            // Adding into the registry
+                            if (registry.get(filePath) == null) {
+                                List<Callback> currentArray = new ArrayList<Callback>();
+                                currentArray.add(callback);
+                                registry.put(filePath, currentArray);
+                            } else {
+                                List<Callback> currentArray = registry.get(filePath);
+                                currentArray.add(callback);
+                                registry.put(filePath, currentArray);
+                            }
+                            fileContent = "Acknowledged! Client added to monitoring mode";
 
+                        } catch (FileNotFoundException e) {
+                            fileContent = "404:Error! File Not Found";
+                        }
+                        serverHandler.reply(receivePacket, 3, fileContent);
                         break;
                     case 5:
-                        //client delete file
+                        // client delete file
                         fileContent = deleteFile(unmarshalledStrings);
 
-                        //client should only clear cache for file if server replies.
+                        // client should only clear cache for file if server replies.
                         serverHandler.reply(receivePacket, 5, fileContent, unmarshalledStrings[2]);
                         break;
                     case 6:
                         Long timeNow = System.currentTimeMillis();
-                        //client insert file
+                        // client insert file
                         fileContent = insertFile(unmarshalledStrings, timeNow);
 
-                        //server should return lastModifiedTime, client cache should be empty. need to test if that causes issues.
-                        serverHandler.reply(receivePacket, 6, fileContent, unmarshalledStrings[3] , String.valueOf(timeNow));
+                        // server should return lastModifiedTime, client cache should be empty. need to
+                        // test if that causes issues.
+                        serverHandler.reply(receivePacket, 6, fileContent, unmarshalledStrings[3],
+                                String.valueOf(timeNow));
                         break;
                     // General Acknowledgement
                     case 7:
@@ -180,7 +199,7 @@ public class UDPServer {
                         break;
                 }
             }
-        }   catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         } finally {
             if (serverSocket != null) {
@@ -365,7 +384,8 @@ public class UDPServer {
         @Override
         public void run() {
             registry.get(filePath).remove(callback);
-            cancel();
+            System.out.println("This timer is cancelled");
+            this.cancel();
         }
     }
 

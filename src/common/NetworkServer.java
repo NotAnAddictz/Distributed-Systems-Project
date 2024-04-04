@@ -42,9 +42,10 @@ public class NetworkServer {
             int clientPort = receivedPacket.getPort();
 
             // At-Most-Once history
-            String uniqueID = clientAddress.toString() + ":" + String.valueOf(clientPort) + ":" + String.valueOf(packetId);
+            String uniqueID = clientAddress.toString() + ":" + String.valueOf(clientPort) + ":"
+                    + String.valueOf(packetId);
 
-            if (isAtMostOnce) { 
+            if (isAtMostOnce) {
                 if (history.get(uniqueID) != null) { // If client command has been executed
                     reply(receivedPacket, -1, null); // Return calculated packet
                     return null;
@@ -52,7 +53,7 @@ public class NetworkServer {
             }
 
             System.out.println("Packet Received from: " + receivedPacket.getAddress() + " Client Port: "
-                + receivedPacket.getPort());
+                    + receivedPacket.getPort());
             return receivedPacket;
         } catch (IOException e) {
             e.printStackTrace();
@@ -60,6 +61,7 @@ public class NetworkServer {
         return null;
     }
 
+    // Simple send-only function
     public void send(Callback client, int funcId, String... args) {
         int packetId = packetIndex;
         packetIndex++;
@@ -70,12 +72,7 @@ public class NetworkServer {
         // Create packet to send to server
         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
 
-        try {
-            // Send packet to server
-            socket.send(sendPacket);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        simulatePacketSend(sendPacket);
     }
 
     public void reply(DatagramPacket receivedPacket, int funcId, String... args) {
@@ -101,7 +98,10 @@ public class NetworkServer {
             history.put(uniqueID, sendPacket);
             System.err.println("New packet created, packetId: " + packetId);
         }
+        simulatePacketSend(sendPacket);
+    }
 
+    public void simulatePacketSend(DatagramPacket sendPacket) {
         // Simulate failure via delays or when packet drops in transit
         int rnd = new Random().nextInt(3);
         if (rnd == 2) {
@@ -125,6 +125,7 @@ public class NetworkServer {
         }
     }
 
+    // Function to blast updates to all registered clients in the database
     public void sendMass(String fileName, int retries) {
         // Sending to all clients
         while (retries < 5) {
@@ -138,11 +139,7 @@ public class NetworkServer {
                 int port = calls.getPort();
                 DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, address,
                         port);
-                try {
-                    socket.send(sendPacket);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                simulatePacketSend(sendPacket);
             }
             // Waiting for 3 seconds, before retrying
             try {
@@ -152,6 +149,8 @@ public class NetworkServer {
             }
             retries++;
         }
+        // Ends the thread when completed
+        return;
     }
 
     // Adds an update to the system
@@ -167,6 +166,7 @@ public class NetworkServer {
         }.start();
     }
 
+    // Function to remove the Client from the Monitoring Database
     public void removeClient(String fileName, Callback client) {
         List<Callback> clientList = sendList.get(fileName);
         for (int i = 0; i < clientList.size(); i++) {
